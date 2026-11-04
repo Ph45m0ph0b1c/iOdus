@@ -16,6 +16,12 @@ or a fork of it. The Xbox account work is done by the backend,
 > sponsored by Microsoft, Xbox, Apple, CodeWeavers, Xodus, or Xodus Nexus.
 > It uses no Microsoft logos or fonts. Use it at your own risk.
 
+![The iOdus home screen with the recent games row](docs/screenshots/home.png)
+
+| My games & apps | Achievements | Social |
+|---|---|---|
+| ![The library with filters](docs/screenshots/library.png) | ![The achievements list](docs/screenshots/achievements.png) | ![The messages list](docs/screenshots/social.png) |
+
 ## Contents
 
 - [Features](#features)

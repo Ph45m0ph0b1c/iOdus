@@ -314,7 +314,8 @@ struct RootContent: View {
             }
             return hints
         case .settings:
-            switch SettingsRow.allCases[model.settingsIndex] {
+            guard let row = model.focusedSettingsRow else { return [.init(.a, "Select"), .init(.b, "Back")] }
+            switch row {
             case .account: return [.init(.a, "Sign out"), .init(.b, "Back")]
             case .installFolder: return [.init(.a, "Change"), .init(.b, "Back"), .init(.x, "Show in Finder")]
             case .rescan: return [.init(.a, "Rescan"), .init(.b, "Back")]

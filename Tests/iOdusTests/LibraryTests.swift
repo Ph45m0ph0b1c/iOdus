@@ -138,10 +138,10 @@ final class ScrollTests: XCTestCase {
         model.scroll(vertical: true, forward: true)
         XCTAssertEqual(model.detailIndex, 0)
 
-        // Settings: a vertical list.
+        // Settings: the wheel moves through the category list.
         model.stack = [.home, .settings]
         model.scroll(vertical: true, forward: true)
-        XCTAssertEqual(model.settingsIndex, 1)
+        XCTAssertEqual(model.settingsCategory, 1)
     }
 }
 

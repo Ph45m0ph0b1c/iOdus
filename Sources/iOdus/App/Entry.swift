@@ -157,7 +157,9 @@ enum Snapshot {
         case "downloads": model.stack = [.home, .downloads]
         case "settings":
             model.stack = [.home, .settings]
-            model.settingsIndex = SettingsRow.fullScreen.rawValue
+            model.settingsCategory = SettingsCategory.display.rawValue
+            model.settingsFocus = .rows
+            model.settingsIndex = 0
         case "friends": model.stack = [.home, .friends]
         case "friendcard":
             model.stack = [.home, .friends]

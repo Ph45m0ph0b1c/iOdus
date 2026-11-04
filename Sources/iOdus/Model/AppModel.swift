@@ -201,7 +201,10 @@ final class AppModel: ObservableObject {
     /// The web view of the open stream. Not in demo mode or snapshots.
     var streamWeb: StreamWebController?
     @Published var downloadIndex = 0
-    @Published var settingsIndex = 0
+    /// Settings: the category list on the left, the rows of one category on the right.
+    @Published var settingsCategory = 0
+    @Published var settingsFocus: SettingsFocus = .categories
+    @Published var settingsIndex = 0          // The row in the current category
     @Published var gameSettingsIndex = 0
     let updateChecker = UpdateChecker()
     var updateTimer: Timer?
@@ -993,7 +996,13 @@ final class AppModel: ObservableObject {
         case .downloads:
             if let task = focusedDownload { downloads.toggle(task.id) }
         case .settings:
-            switch SettingsRow.allCases[settingsIndex] {
+            guard let row = focusedSettingsRow else {
+                // A on a category: go into its rows.
+                settingsFocus = .rows
+                settingsIndex = 0
+                return
+            }
+            switch row {
             case .account: signOut()
             case .installFolder: chooseInstallFolder()
             case .rescan: rescanInstallFolder()
@@ -1077,6 +1086,11 @@ final class AppModel: ObservableObject {
             }
             return
         }
+        // Settings: B in the rows goes back to the category list first.
+        if screen == .settings, settingsFocus == .rows {
+            settingsFocus = .categories
+            return
+        }
         guard stack.count > 1 else { return }
         stack.removeLast()
     }
@@ -1150,7 +1164,7 @@ final class AppModel: ObservableObject {
             requestDelete(gameID: id)
         case .runtimes(nil):
             prepareFocusedRuntime()
-        case .settings where SettingsRow.allCases[settingsIndex] == .installFolder:
+        case .settings where focusedSettingsRow == .installFolder:
             let root = downloads.installRoot
             try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             NSWorkspace.shared.activateFileViewerSelecting([root])
@@ -1188,9 +1202,34 @@ final class AppModel: ObservableObject {
         confirm()
     }
 
+    /// A click on a row of the current category.
     func tapSettings(_ index: Int) {
+        settingsFocus = .rows
         settingsIndex = index
         confirm()
+    }
+
+    /// A click on a category: show its rows; the focus stays on the list.
+    func tapSettingsCategory(_ index: Int) {
+        settingsCategory = index
+        settingsIndex = 0
+        settingsFocus = .categories
+    }
+
+    /// The rows of the selected category.
+    var settingsRows: [SettingsRow] { SettingsCategory.allCases[settingsCategory].rows }
+
+    /// The row with the focus, or nil when the focus is on the category list.
+    var focusedSettingsRow: SettingsRow? {
+        guard settingsFocus == .rows, settingsRows.indices.contains(settingsIndex) else { return nil }
+        return settingsRows[settingsIndex]
+    }
+
+    /// Settings opens on the first category, with the focus on the list.
+    func resetSettings() {
+        settingsCategory = 0
+        settingsFocus = .categories
+        settingsIndex = 0
     }
 
     func tapPrompt(_ index: Int) {
@@ -1419,9 +1458,17 @@ final class AppModel: ObservableObject {
     }
 
     private func moveSettings(_ d: Direction) {
-        switch d {
-        case .up: settingsIndex = max(0, settingsIndex - 1)
-        case .down: settingsIndex = min(SettingsRow.allCases.count - 1, settingsIndex + 1)
+        switch (settingsFocus, d) {
+        case (.categories, .up), (.categories, .down):
+            let next = settingsCategory + (d == .up ? -1 : 1)
+            settingsCategory = min(max(0, next), SettingsCategory.allCases.count - 1)
+            settingsIndex = 0
+        case (.categories, .right):
+            settingsFocus = .rows
+            settingsIndex = 0
+        case (.rows, .up): settingsIndex = max(0, settingsIndex - 1)
+        case (.rows, .down): settingsIndex = min(settingsRows.count - 1, settingsIndex + 1)
+        case (.rows, .left): settingsFocus = .categories
         default: break
         }
     }
@@ -1441,7 +1488,7 @@ final class AppModel: ObservableObject {
         case "library": openLibrary()
         case "downloads": openDownloads()
         case "settings":
-            settingsIndex = 0
+            resetSettings()
             stack.append(.settings)
 
         case "achievements": openAchievementHub()
@@ -1503,6 +1550,47 @@ enum DetailAction: Int, CaseIterable {
 
 enum SettingsRow: Int, CaseIterable {
     case account, installFolder, rescan, fullScreen, performance, updates, runtime, vcRuntime, backend, exportLogs, about
+}
+
+/// The categories of the Settings page. Each one has few rows, so that a
+/// category always fits in the window.
+enum SettingsCategory: Int, CaseIterable {
+    case account, games, display, runtimes, system
+
+    var title: String {
+        switch self {
+        case .account: "Account"
+        case .games: "Games"
+        case .display: "Display"
+        case .runtimes: "Runtimes"
+        case .system: "System"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .account: "person.crop.circle"
+        case .games: "gamecontroller"
+        case .display: "display"
+        case .runtimes: "cpu"
+        case .system: "gearshape"
+        }
+    }
+
+    var rows: [SettingsRow] {
+        switch self {
+        case .account: [.account]
+        case .games: [.installFolder, .rescan]
+        case .display: [.fullScreen, .performance]
+        case .runtimes: [.runtime, .vcRuntime]
+        case .system: [.updates, .backend, .exportLogs, .about]
+        }
+    }
+}
+
+/// Where the focus is on the Settings page.
+enum SettingsFocus: Equatable {
+    case categories, rows
 }
 
 /// The version and the source of the backend, for the Settings page.

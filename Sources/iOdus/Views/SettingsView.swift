@@ -1,32 +1,65 @@
 import SwiftUI
 
-/// Settings: the account, the install folder, and information about the backend.
+/// Settings: a list of categories on the left (as the filters of "My games &
+/// apps"), and the rows of the selected category on the right. A category has
+/// few rows, so the page always fits in the window.
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
     let scale: CGFloat
 
     var body: some View {
         let s = scale
-        VStack(alignment: .leading, spacing: 10 * s) {
-            Text("Settings")
-                .font(.system(size: 40 * s, weight: .semibold))
-                .padding(.bottom, 6 * s)
-            ForEach(SettingsRow.allCases, id: \.self) { row in
-                rowView(row, s)
-                    .focusFrame(model.settingsIndex == row.rawValue, scale: s)
-                    .contentShape(Rectangle())
-                    .onTapGesture { model.tapSettings(row.rawValue) }
+        HStack(alignment: .top, spacing: 48 * s) {
+            categories(s)
+                .frame(width: 280 * s)
+            VStack(alignment: .leading, spacing: 10 * s) {
+                // The rows start at the height of the first category.
+                Spacer().frame(height: 58 * s)
+                ForEach(Array(model.settingsRows.enumerated()), id: \.element) { index, row in
+                    rowView(row, s)
+                        .focusFrame(model.focusedSettingsRow == row, scale: s)
+                        .opacity(model.settingsFocus == .rows ? 1 : 0.75)
+                        .contentShape(Rectangle())
+                        .onTapGesture { model.tapSettings(index) }
+                }
             }
-            Spacer()
+            .frame(maxWidth: 1000 * s, alignment: .leading)
+            Spacer(minLength: 0)
         }
         .foregroundStyle(Theme.textPrimary)
-        .frame(maxWidth: 1300 * s, alignment: .leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.horizontal, Theme.sidePadding * s)
         .padding(.top, 150 * s)
         .background(
             LinearGradient(colors: [Color(white: 0.10), Theme.background], startPoint: .top, endPoint: .bottom)
         )
+    }
+
+    private func categories(_ s: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 8 * s) {
+            Text("Settings")
+                .font(.system(size: 34 * s, weight: .semibold))
+                .padding(.bottom, 10 * s)
+            ForEach(SettingsCategory.allCases, id: \.self) { category in
+                let selected = model.settingsCategory == category.rawValue
+                HStack(spacing: 14 * s) {
+                    Image(systemName: category.symbol)
+                        .frame(width: 28 * s)
+                    Text(category.title)
+                    Spacer()
+                }
+                .font(.system(size: 20 * s, weight: selected ? .semibold : .regular))
+                .foregroundStyle(selected ? Theme.textPrimary : Theme.textSecondary)
+                .padding(.vertical, 10 * s)
+                .padding(.horizontal, 14 * s)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(selected ? Theme.tile : .clear,
+                            in: RoundedRectangle(cornerRadius: Theme.cornerRadius * s))
+                .focusFrame(selected && model.settingsFocus == .categories, scale: s, radius: Theme.cornerRadius)
+                .contentShape(Rectangle())
+                .onTapGesture { model.tapSettingsCategory(category.rawValue) }
+            }
+        }
     }
 
     private func rowView(_ row: SettingsRow, _ s: CGFloat) -> some View {

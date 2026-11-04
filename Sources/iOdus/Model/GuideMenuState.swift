@@ -225,6 +225,7 @@ extension AppModel {
     /// prompt, panel, card, or text box is open, and the page is at its first level.
     func guidePageAtRoot(depth: Int) -> Bool {
         installPrompt == nil && statusPanel == nil && friendCard == nil && !isTyping && stack.count <= depth
+            && !(screen == .settings && settingsFocus == .rows)
     }
 
     /// Opens the screen of a guide menu entry in the iOdus window. The caller
@@ -248,7 +249,7 @@ extension AppModel {
             if screen != .messages { stack.append(.messages) }
             Task { await loadInbox(notify: false) }
         case .settings:
-            settingsIndex = 0
+            resetSettings()
             if screen != .settings { stack.append(.settings) }
         case .backToApp, .resume, .closeGame:
             break

@@ -207,6 +207,7 @@ final class AppModel: ObservableObject {
     @Published var settingsIndex = 0          // The row in the current category
     @Published var gameSettingsIndex = 0
     let updateChecker = UpdateChecker()
+    @Published var appUpdate: AppUpdateState = .idle
     var updateTimer: Timer?
 
     let shortcuts = Shortcut.all
@@ -1015,6 +1016,14 @@ final class AppModel: ObservableObject {
                 let old = overlayMode(for: playState.gameID)
                 AppSettings.performanceOverlay = AppSettings.performanceOverlay.next
                 overlayChanged(from: old)
+            case .appUpdate:
+                switch appUpdate {
+                case .available: installAppUpdate()
+                case .failed: openReleasePage()
+                case .idle, .upToDate: checkForUpdatesNow()
+                default: break
+                }
+            case .releaseNotes: openReleasePage()
             case .updates:
                 updateChecker.enabled.toggle()
                 objectWillChange.send()
@@ -1549,13 +1558,33 @@ enum DetailAction: Int, CaseIterable {
 }
 
 enum SettingsRow: Int, CaseIterable {
-    case account, installFolder, rescan, fullScreen, performance, updates, runtime, vcRuntime, backend, exportLogs, about
+    case account, installFolder, rescan, fullScreen, performance, appUpdate, releaseNotes, updates, runtime, vcRuntime,
+         backend, exportLogs, about
+}
+
+/// The state of the in-app update (Settings > Updates).
+enum AppUpdateState: Equatable {
+    case idle                               // No check yet, or nothing found
+    case checking
+    case upToDate
+    case available(String)                  // The version
+    case downloading(String, Double)        // The version, 0...1
+    case verifying(String)
+    case installing(String)
+    case failed(String, String)             // The version, the reason
+
+    var isBusy: Bool {
+        switch self {
+        case .checking, .downloading, .verifying, .installing: true
+        default: false
+        }
+    }
 }
 
 /// The categories of the Settings page. Each one has few rows, so that a
 /// category always fits in the window.
 enum SettingsCategory: Int, CaseIterable {
-    case account, games, display, runtimes, system
+    case account, games, display, runtimes, updates, about
 
     var title: String {
         switch self {
@@ -1563,7 +1592,8 @@ enum SettingsCategory: Int, CaseIterable {
         case .games: "Games"
         case .display: "Display"
         case .runtimes: "Runtimes"
-        case .system: "System"
+        case .updates: "Updates"
+        case .about: "About"
         }
     }
 
@@ -1573,7 +1603,8 @@ enum SettingsCategory: Int, CaseIterable {
         case .games: "gamecontroller"
         case .display: "display"
         case .runtimes: "cpu"
-        case .system: "gearshape"
+        case .updates: "arrow.down.circle"
+        case .about: "info.circle"
         }
     }
 
@@ -1583,7 +1614,8 @@ enum SettingsCategory: Int, CaseIterable {
         case .games: [.installFolder, .rescan]
         case .display: [.fullScreen, .performance]
         case .runtimes: [.runtime, .vcRuntime]
-        case .system: [.updates, .backend, .exportLogs, .about]
+        case .updates: [.appUpdate, .releaseNotes, .updates]
+        case .about: [.about, .backend, .exportLogs]
         }
     }
 }

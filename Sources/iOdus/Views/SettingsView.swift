@@ -76,7 +76,7 @@ struct SettingsView: View {
                     Text(line)
                         .font(.system(size: 18 * s))
                         .foregroundStyle(Theme.textSecondary)
-                        .lineLimit(1)
+                        .lineLimit(row == .appUpdate ? 2 : 1)
                         .truncationMode(.middle)
                 }
             }
@@ -119,8 +119,43 @@ struct SettingsView: View {
             case .full: "FPS in the game window, and the system panel · FPS changes apply at the next game start"
             }
             return ("speedometer", "Performance overlay", [detail], mode.title)
+        case .appUpdate:
+            let current = UpdateCheck.currentVersion ?? "development build"
+            switch model.appUpdate {
+            case .idle:
+                return ("arrow.down.circle", "iOdus \(current)", ["Checks GitHub for a new version."], "Check now")
+            case .checking:
+                return ("arrow.down.circle", "iOdus \(current)", ["Checking for a new version…"], nil)
+            case .upToDate:
+                return ("checkmark.circle", "iOdus \(current)", ["This is the newest version."], "Check now")
+            case .available(let version):
+                return ("arrow.down.circle.fill", "iOdus \(version) is available",
+                        ["You have version \(current). iOdus downloads the update, checks its signature, and restarts."],
+                        "Install")
+            case .downloading(let version, let fraction):
+                return ("arrow.down.circle.fill", "Downloading iOdus \(version)",
+                        ["\(Int(fraction * 100))%"], nil)
+            case .verifying(let version):
+                return ("checkmark.shield", "Checking iOdus \(version)",
+                        ["The checksum, the signature, and the notarization."], nil)
+            case .installing(let version):
+                return ("arrow.triangle.2.circlepath", "Installing iOdus \(version)",
+                        ["iOdus restarts in a moment."], nil)
+            case .failed(let version, let reason):
+                return ("exclamationmark.triangle", "iOdus \(version) did not install", [reason], "Release page")
+            }
+        case .releaseNotes:
+            let detail: String
+            if case .available(let version) = model.appUpdate {
+                detail = "What is new in iOdus \(version)."
+            } else if let current = UpdateCheck.currentVersion {
+                detail = "The release of iOdus \(current), with its notes and files."
+            } else {
+                detail = "The iOdus releases."
+            }
+            return ("safari", "Release notes on GitHub", [detail], "Open")
         case .updates:
-            return ("arrow.down.app", "Check for updates", [], nil)
+            return ("clock.arrow.circlepath", "Check for updates automatically", ["Once a day."], nil)
         case .runtime:
             return ("cpu", "Game runtime", model.runtimeStatus, "Prepare again")
         case .vcRuntime:

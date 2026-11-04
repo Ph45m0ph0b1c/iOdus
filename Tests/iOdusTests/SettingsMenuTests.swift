@@ -75,4 +75,22 @@ final class SettingsMenuTests: XCTestCase {
         model.move(.right)
         XCTAssertFalse(model.guidePageAtRoot(depth: depth), "B must first go back to the categories")
     }
+
+    func testAnUpdateNotificationOpensSettingsNotGitHub() {
+        let model = model()
+        model.stack = [.home]
+        // An old notification still has the link to the release page.
+        model.notifications = [AppNotification(date: Date(), kind: .update, title: "iOdus 9.9.9 is available",
+                                               detail: "d", action: .openURL("https://github.com/burghr/iOdus/releases"))]
+        model.openNotification(0)
+        XCTAssertEqual(model.screen, .settings)
+        XCTAssertEqual(model.settingsCategory, SettingsCategory.updates.rawValue)
+        XCTAssertEqual(model.focusedSettingsRow, .appUpdate)
+    }
+
+    func testTheUpdatesCategoryHasTheReleaseNotesRow() {
+        XCTAssertEqual(SettingsCategory.updates.rows, [.appUpdate, .releaseNotes, .updates])
+        let model = model()
+        XCTAssertTrue(model.releasePageURL.hasPrefix("https://github.com/burghr/iOdus/releases"))
+    }
 }

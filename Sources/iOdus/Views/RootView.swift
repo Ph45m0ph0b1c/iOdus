@@ -321,6 +321,14 @@ struct RootContent: View {
             case .rescan: return [.init(.a, "Rescan"), .init(.b, "Back")]
             case .runtime: return [.init(.a, "Runtimes"), .init(.b, "Back")]
             case .vcRuntime: return [.init(.a, model.vcRuntimeInstalled ? "Install again" : "Install"), .init(.b, "Back")]
+            case .appUpdate:
+                switch model.appUpdate {
+                case .available: return [.init(.a, "Install"), .init(.b, "Back")]
+                case .failed: return [.init(.a, "Release page"), .init(.b, "Back")]
+                case .idle, .upToDate: return [.init(.a, "Check now"), .init(.b, "Back")]
+                default: return [.init(.b, "Back")]
+                }
+            case .releaseNotes: return [.init(.a, "Open"), .init(.b, "Back")]
             case .fullScreen, .updates:
                 return [.init(.a, "Switch"), .init(.b, "Back")]
             case .performance:

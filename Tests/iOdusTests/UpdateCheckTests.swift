@@ -59,7 +59,8 @@ final class UpdateCheckerTests: XCTestCase {
         let item = try XCTUnwrap(first)
         XCTAssertEqual(item.kind, .update)
         XCTAssertEqual(item.title, "iOdus 0.3.0 is available", "The pre-release 0.4.0 is skipped")
-        XCTAssertEqual(item.action, .openURL("https://github.com/burghr/iOdus/releases/tag/v0.3.0"))
+        XCTAssertEqual(item.action, .openUpdate, "The notification opens Settings > Updates")
+        XCTAssertEqual(checker.available?.version, "0.3.0")
         XCTAssertEqual(github.lastURL?.absoluteString, "https://api.github.com/repos/burghr/iOdus/releases?per_page=20")
         let again = await checker.check(force: true)
         XCTAssertNil(again, "The same version is not announced two times")
@@ -107,6 +108,19 @@ final class UpdateCheckerTests: XCTestCase {
         result = await checker.check(force: true)
         XCTAssertNil(result)
         XCTAssertEqual(off.calls, 0)
+
+        // Check now works also when the automatic check is off.
+        result = await checker.check(force: true, manual: true)
+        XCTAssertNotNil(result)
+        XCTAssertEqual(off.calls, 1)
+        XCTAssertEqual(checker.available?.version, "0.3.0")
+    }
+
+    func testAnUpToDateCheckClearsTheAvailableRelease() async {
+        let github = FakeGitHub(status: 200, body: releasesJSON)
+        let checker = UpdateChecker(repository: "o/r", currentVersion: "0.3.0", defaults: defaults(), fetch: github.fetch)
+        _ = await checker.check(force: true)
+        XCTAssertNil(checker.available)
     }
 
     func testNetworkErrorIsQuiet() async {

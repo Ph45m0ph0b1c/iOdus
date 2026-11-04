@@ -10,6 +10,7 @@ struct AppNotification: Codable, Identifiable, Equatable {
         case openAchievements(String)   // Xbox title ID
         case openConversation(String)   // XUID
         case openURL(String)
+        case openUpdate                 // Settings > Updates
         case none
     }
 
@@ -90,9 +91,107 @@ extension AppModel {
     }
 
     func checkForUpdates(force: Bool) async {
-        guard !demo, let item = await updateChecker.check(force: force) else { return }
+        guard !demo else { return }
+        let item = await updateChecker.check(force: force)
+        refreshUpdateState()
+        guard let item else { return }
         notify(item)
         showToast(item.title, seconds: 5)
+    }
+
+    /// The Check now row: checks also when the automatic check is off.
+    func checkForUpdatesNow() {
+        guard !demo, !appUpdate.isBusy else { return }
+        appUpdate = .checking
+        Task {
+            if let item = await updateChecker.check(force: true, manual: true) { notify(item) }
+            refreshUpdateState(afterManualCheck: true)
+        }
+    }
+
+    /// The update row shows the release that the last check found.
+    func refreshUpdateState(afterManualCheck: Bool = false) {
+        guard !appUpdate.isBusy || appUpdate == .checking else { return }
+        if let release = updateChecker.available {
+            appUpdate = .available(release.version)
+        } else if afterManualCheck {
+            appUpdate = .upToDate
+        } else if appUpdate == .checking {
+            appUpdate = .idle
+        }
+    }
+
+    /// Settings > Updates, with the focus on the update row.
+    func openUpdateSettings() {
+        statusPanel = nil
+        settingsCategory = SettingsCategory.updates.rawValue
+        settingsFocus = .rows
+        settingsIndex = 0
+        if screen != .settings { stack.append(.settings) }
+    }
+
+    /// Downloads, checks, and installs the release that the last check found,
+    /// then restarts iOdus. See AppUpdater for the checks.
+    func installAppUpdate() {
+        guard case .available(let version) = appUpdate, let release = updateChecker.available,
+              release.version == version else { return }
+        let downloading = downloads.tasks.contains { $0.status == .running || $0.status == .queued }
+        if let reason = AppUpdater.blockReason(playing: playState != .idle, downloading: downloading) {
+            showToast(reason, seconds: 5)
+            return
+        }
+        let current = Bundle.main.bundleURL
+        do {
+            guard let asset = release.appArchive else { throw AppUpdateError.noArchive }
+            guard let team = AppUpdater.runningTeamID() else { throw AppUpdateError.noTeam }
+            try AppUpdater.checkReplaceable(current)
+            let folder = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("iOdus/Updates/\(version)")
+            appUpdate = .downloading(version, 0)
+            Task {
+                do {
+                    let zip = try await AppUpdater.download(asset, into: folder) { fraction in
+                        Task { @MainActor in
+                            if case .downloading = AppModel.shared.appUpdate {
+                                AppModel.shared.appUpdate = .downloading(version, fraction)
+                            }
+                        }
+                    }
+                    appUpdate = .verifying(version)
+                    let app = try await Task.detached {
+                        try AppUpdater.prepare(zip: zip, asset: asset, version: version, team: team, into: folder)
+                    }.value
+                    // A game can start during the download.
+                    guard playState == .idle else {
+                        appUpdate = .available(version)
+                        showToast("Stop the game first. iOdus restarts for the update.", seconds: 5)
+                        return
+                    }
+                    appUpdate = .installing(version)
+                    try AppUpdater.install(app, replacing: current)
+                    try? FileManager.default.removeItem(at: folder)
+                    AppUpdater.relaunch(current)
+                    NSApp.terminate(nil)
+                } catch {
+                    appUpdate = .failed(version, error.localizedDescription)
+                }
+            }
+        } catch {
+            appUpdate = .failed(version, error.localizedDescription)
+        }
+    }
+
+    /// The release page on GitHub: the new version when the last check found
+    /// one, else the version that runs, else the latest release.
+    func openReleasePage() {
+        if let url = URL(string: releasePageURL) { NSWorkspace.shared.open(url) }
+    }
+
+    var releasePageURL: String {
+        if let release = updateChecker.available { return release.htmlURL }
+        let releases = "https://github.com/\(updateChecker.repository)/releases"
+        if let current = UpdateCheck.currentVersion { return "\(releases)/tag/v\(current)" }
+        return "\(releases)/latest"
     }
 
     func notify(_ item: AppNotification) {
@@ -126,6 +225,12 @@ extension AppModel {
         guard index < notifications.count else { return }
         let item = notifications[index]
         statusPanel = nil
+        // An update notification opens Settings > Updates, also an old one
+        // that still has the link to the release page.
+        if item.kind == .update {
+            openUpdateSettings()
+            return
+        }
         switch item.action {
         case .openGame(let id):
             if game(id) != nil { home(); openDetail(id) }
@@ -147,6 +252,8 @@ extension AppModel {
             openConversation(with: xuid)
         case .openURL(let text):
             if let url = URL(string: text) { NSWorkspace.shared.open(url) }
+        case .openUpdate:
+            openUpdateSettings()
         case .none:
             break
         }

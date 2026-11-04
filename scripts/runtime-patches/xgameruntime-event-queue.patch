@@ -1,0 +1,129 @@
+--- a/dlls/xgameruntime/xgameevent.c
++++ b/dlls/xgameruntime/xgameevent.c
+@@ -19,6 +19,11 @@
+  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
+  */
+ 
++#include <ctype.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
+ #include "private.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(gdkc);
+@@ -68,10 +73,112 @@
+     return ref;
+ }
+ 
++/* iOdus: a local event queue.
++ *
++ * On Windows, the system queues the in-game events and uploads them to the
++ * Xbox Live events service (events-based achievements and statistics). The
++ * upload format comes from a Microsoft library that is not public, so iOdus
++ * does not upload the events yet. This function checks the arguments in the
++ * same way as XSAPI, and adds each event as one line to
++ * %LOCALAPPDATA%\XodusGameEvents\<xuid>\<scid>.tsv, in the order of the
++ * XSAPI offline format: xuid, name, time, dimensions, measurements, and then
++ * the play session. A later uploader can send the queue. The game gets S_OK,
++ * as on Windows when the events wait offline. */
++
++#define EVENT_QUEUE_LIMIT (4 * 1024 * 1024)   /* Bytes for each title. After the limit, new events are dropped. */
++
++static BOOL valid_event_name( const char *name )
++{
++    /* XSAPI: [A-Za-z]+[A-Za-z0-9_]* */
++    if (!name || !isalpha( (BYTE)*name )) return FALSE;
++    for (name++; *name; name++) if (!isalnum( (BYTE)*name ) && *name != '_') return FALSE;
++    return TRUE;
++}
++
++/* NULL, empty, or a JSON object on one line (the queue has one event on each line). */
++static BOOL valid_object( const char *json )
++{
++    const char *end;
++    if (!json) return TRUE;
++    while (*json == ' ' || *json == '\t') json++;
++    if (!*json) return TRUE;
++    if (*json != '{' || strpbrk( json, "\r\n" )) return FALSE;
++    end = json + strlen( json );
++    while (end > json && (end[-1] == ' ' || end[-1] == '\t')) end--;
++    return end > json && end[-1] == '}';
++}
++
++static const char *object_or_empty( const char *json )
++{
++    if (!json) return "{}";
++    while (*json == ' ' || *json == '\t') json++;
++    return *json ? json : "{}";
++}
++
++static void make_directories( char *path )
++{
++    for (char *p = path + 3; *p; p++)
++    {
++        if (*p != '\\') continue;
++        *p = 0;
++        CreateDirectoryA( path, NULL );
++        *p = '\\';
++    }
++    CreateDirectoryA( path, NULL );
++}
++
++static HRESULT queue_event( UINT64 xuid, const char *scid, const char *session, const char *name,
++                            const char *dimensions, const char *measurements )
++{
++    char dir[1024], path[1200], safe[128], stamp[32], *line;
++    LARGE_INTEGER size;
++    SYSTEMTIME now;
++    HANDLE file;
++    DWORD written;
++    int len, i;
++
++    lstrcpynA( safe, scid, sizeof(safe) );
++    for (i = 0; safe[i]; i++) if (!isalnum( (BYTE)safe[i] ) && safe[i] != '-') safe[i] = '_';
++    if (!GetEnvironmentVariableA( "LOCALAPPDATA", dir, 512 )) strcpy( dir, "C:\\users\\Public\\AppData\\Local" );
++    snprintf( dir + strlen( dir ), sizeof(dir) - strlen( dir ), "\\XodusGameEvents\\%I64u", xuid );
++    make_directories( dir );
++    snprintf( path, sizeof(path), "%s\\%s.tsv", dir, safe );
++
++    GetSystemTime( &now );
++    snprintf( stamp, sizeof(stamp), "%04u-%02u-%02uT%02u:%02u:%02u.%03uZ", now.wYear, now.wMonth, now.wDay,
++              now.wHour, now.wMinute, now.wSecond, now.wMilliseconds );
++    len = snprintf( NULL, 0, "%I64u\t%s\t%s\t%s\t%s\t%s\n", xuid, name, stamp, object_or_empty( dimensions ),
++                    object_or_empty( measurements ), session ? session : "" );
++    if (len <= 0 || !(line = malloc( len + 1 ))) return E_OUTOFMEMORY;
++    snprintf( line, len + 1, "%I64u\t%s\t%s\t%s\t%s\t%s\n", xuid, name, stamp, object_or_empty( dimensions ),
++              object_or_empty( measurements ), session ? session : "" );
++
++    file = CreateFileA( path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS,
++                        FILE_ATTRIBUTE_NORMAL, NULL );
++    if (file == INVALID_HANDLE_VALUE)
++    {
++        free( line );
++        return HRESULT_FROM_WIN32( GetLastError() );
++    }
++    if (GetFileSizeEx( file, &size ) && size.QuadPart + len > EVENT_QUEUE_LIMIT)
++        WARN( "event queue %s is full, dropping event %s.\n", debugstr_a( path ), debugstr_a( name ) );
++    else if (!WriteFile( file, line, len, &written, NULL ) || written != len)
++        WARN( "could not write event %s, error %lu.\n", debugstr_a( name ), GetLastError() );
++    CloseHandle( file );
++    free( line );
++    return S_OK;
++}
++
+ static HRESULT WINAPI x_game_event_XGameEventWrite( IXGameEventImpl *iface, XUserHandle user, const char *serviceConfigId, const char *playSessionId, const char *eventName, const char *dimensionsJson, const char *measurementsJson )
+ {
+-    FIXME( "iface %p, user %p, serviceConfigId %s, playSessionId %s, eventName %s, dimensionsJson %s, measurementsJson %s stub!\n", iface, user, debugstr_a( serviceConfigId ), debugstr_a( playSessionId ), debugstr_a( eventName ), debugstr_a( dimensionsJson ), debugstr_a( measurementsJson ) );
+-    return E_NOTIMPL;
++    UINT64 xuid;
++
++    TRACE( "iface %p, user %p, serviceConfigId %s, playSessionId %s, eventName %s, dimensionsJson %s, measurementsJson %s.\n", iface, user, debugstr_a( serviceConfigId ), debugstr_a( playSessionId ), debugstr_a( eventName ), debugstr_a( dimensionsJson ), debugstr_a( measurementsJson ) );
++
++    if (!user || !serviceConfigId || !*serviceConfigId || !valid_event_name( eventName )) return E_INVALIDARG;
++    if (!valid_object( dimensionsJson ) || !valid_object( measurementsJson )) return E_INVALIDARG;
++    if (!(xuid = xuser_get_xuid( user ))) return E_INVALIDARG;
++    return queue_event( xuid, serviceConfigId, playSessionId, eventName, dimensionsJson, measurementsJson );
+ }
+ 
+ static const struct IXGameEventImplVtbl x_game_event_vtbl =

@@ -1,0 +1,228 @@
+{
+  "origin": {
+    "repository": "https://github.com/domsvoboda/xodus-nexus",
+    "commit": "6100e3a7ddb1acdbf0259c8c32fe66e7b17394f0",
+    "license": "MIT"
+  },
+  "sources": {
+    "wine": {
+      "url": "https://github.com/xodus-gaming/wine.git",
+      "commit": "b1dd32734a34472a28eb5be9922df06e07ac0834"
+    },
+    "xgameruntime": {
+      "url": "https://github.com/xodus-gaming/xgameruntime.git",
+      "commit": "64aebcabb8c66121eae25d3bf0ace4b582ebb0da"
+    }
+  },
+  "patches": [
+    {
+      "file": "xgameruntime-shared-foundation.patch",
+      "sha256": "7b2b0d5b4145c44699ecc9f58ee4965c3cd777580c2ef64ceae91ae61cad290c"
+    },
+    {
+      "file": "xgameruntime-taskqueue-lifecycle-experimental.patch",
+      "sha256": "1246b44e9ea56fa9ed784c5eb8940284a0d186012bddd36e9a04ae29748c1d4d"
+    },
+    {
+      "file": "xgameruntime-async-provider-experimental.patch",
+      "sha256": "fd449495b2d2cf97343816e891962e6d34dcecd42abfd2a7315f399ccb285539"
+    },
+    {
+      "file": "xgameruntime-network-async-experimental.patch",
+      "sha256": "51b8fec258be9d695429a37ec009ba9da15a0a628bb6e6f87268aba5fc4dbc73"
+    },
+    {
+      "file": "xgameruntime-user-signin.patch",
+      "sha256": "d4c7a1ca0a86c6fd7cc69d538f5b673c8c4d70cd351c61e61c9a87d6c20414ea"
+    },
+    {
+      "file": "xgameruntime-package-identity.patch",
+      "sha256": "711aade072bb9a566d2bdebd816b6af63f995bb00c1e27da8176d4f7583ecef5"
+    },
+    {
+      "file": "xgameruntime-store-updates.patch",
+      "sha256": "1532f4e9de02510ef401f09631ca3de0e551e4fafbec52d6d7cc218e736abbc4"
+    },
+    {
+      "file": "xgameruntime-token-worker.patch",
+      "sha256": "295e03ffbcbb6884e34d53cf7240d7a66cba57c88986fb96cff4fb177861f78e"
+    },
+    {
+      "file": "xgameruntime-init-config-contract.patch",
+      "sha256": "12c261ae35b0619e25a762abcad0df696f5b0cec4ec550ccc04783b8c239f541"
+    },
+    {
+      "file": "xgameruntime-async-schedule-validation.patch",
+      "sha256": "56a0d773adfa306d04596ba838c88ce391efadd35d88c960aaae355cd5aec774"
+    },
+    {
+      "file": "xgameruntime-gamesave-files.patch",
+      "sha256": "10181b31b0f67f2b00dbf34ed0eaf085da820b26f2d2fc703c59a9dcedf9ea48"
+    },
+    {
+      "file": "xgameruntime-shutdown-drain.patch",
+      "sha256": "bc4605b0ce6a6025cd633bd4375ad2b073cffe938f72e93c4e70b6eafde97445"
+    },
+    {
+      "file": "xgameruntime-profile-request.patch",
+      "sha256": "c2dd47e259a9f06e4c3acf5022e95db55394ca97ec69c37479d8e0067f7c5e86"
+    },
+    {
+      "file": "xgameruntime-gamesave-background-upload.patch",
+      "sha256": "3c30273f82434a3fff2c99b7516f6c446bfaa2299d458d170f7472cff0f24ac9"
+    },
+    {
+      "file": "xgameruntime-async-cleanup.patch",
+      "sha256": "5d904002da3a23d143fdc716959335c4b32fd1b37ad001c0f2a7b9d034ac946f"
+    },
+    {
+      "file": "xgameruntime-store-entitlements.patch",
+      "sha256": "146e4f1fa1e794a0e332bfc58115f58185573fa9c2ad2b300e60fc9ad4ee6ea5"
+    },
+    {
+      "file": "xgameruntime-package-content.patch",
+      "sha256": "3e782aef2ae05c39e3ecfec24f8319406818a76619263f7e70521a90e7ea9d7e"
+    },
+    {
+      "file": "xgameruntime-package-license.patch",
+      "sha256": "e4a9c68e272719f5ad2d2baa7ffcad2542df25cb93163c1b00b081d4594ee407"
+    },
+    {
+      "file": "xgameruntime-taskqueue-dispatch-exit.patch",
+      "sha256": "e28f50f94389eae960afd4814c68fca1be70400d14e53fe16a94ee833348fd48"
+    },
+    {
+      "file": "xgameruntime-package-chunk-order.patch",
+      "sha256": "5f61165dfd8ed5beb604b45a587a4e517982358850cf503a50802384123ec3c7"
+    },
+    {
+      "file": "xgameruntime-game-license-events.patch",
+      "sha256": "a97084c5ca22cf14d35538e9add8a2d820388f4133dbe158c74160034fe3be83"
+    },
+    {
+      "file": "xgameruntime-manifest-comments.patch",
+      "sha256": "9f9d4469ab1358db1a3e0146c279c2614b076ebcbe7d67027b504eb8810296df"
+    },
+    {
+      "file": "xgameruntime-package-legacy.patch",
+      "sha256": "6414ee338c717b855beb700824b96bc4f583c05a9d19f713378022998fead946"
+    },
+    {
+      "file": "xgameruntime-package-chunks.patch",
+      "sha256": "1bad3c2e91be112f7b703be53561b0ac13d2f46c3979a2868bcadc25f47f281d"
+    },
+    {
+      "file": "xgameruntime-package-monitors.patch",
+      "sha256": "3ef25340642e82ea1abb156a492003a508de92ce5a3738959ec9f8015ffdf6cc"
+    },
+    {
+      "file": "xgameruntime-device-id.patch",
+      "sha256": "10ae43af64d816f1b7a72b577560508e2a2c04dff2b2e7b405bd7400f971462a"
+    },
+    {
+      "file": "xgameruntime-user-privilege.patch",
+      "sha256": "10bd2caf5a6788038bacc84978abfcb78c0dc9f6317b27ee2a048ded549d2fac"
+    },
+    {
+      "file": "xgameruntime-device-association.patch",
+      "sha256": "1b8081b1e86ed6006a4ac28f55497c93f6d3bb8702e3a9ca7b7c9e0a5ac189d6"
+    },
+    {
+      "file": "wine-appstate-registration.patch",
+      "sha256": "90d564fdadd25043ed03ec1279fa43b7717c43183ffb2d2dbee2a03158e4f090"
+    },
+    {
+      "file": "xgameruntime-taskqueue-handle-lifetime.patch",
+      "sha256": "71b03c151786233956161feb5b5f0ce369101d353d5cab8b86eb717381b8c96c"
+    },
+    {
+      "file": "xgameruntime-taskqueue-repeat-termination.patch",
+      "sha256": "0dd3bc5e8e32f546de2b060eaa6bc8c90197d9dd522d3ae150451a93900880d0"
+    },
+    {
+      "file": "xgameruntime-game-relaunch.patch",
+      "sha256": "e6bf837a8d120c4e880cb43a6743772db7a4b61ff16a68a4bdce0627fe13962d"
+    },
+    {
+      "file": "xgameruntime-package-progress-bytes.patch",
+      "sha256": "08d45b8a0eb191c97aaaeb5bce5fd9e68c54dd6675518d1ee4ba938ba733eaf5"
+    },
+    {
+      "file": "xgameruntime-gamesave-transactions.patch",
+      "sha256": "cef4e8bdbd3bb846afc71846fdbc1632ef57cfec3b6e45c066f73edc5c7ab948"
+    },
+    {
+      "file": "xgameruntime-save-upload-completion.patch",
+      "sha256": "618f95a3561eaa9c9702adf325b8e31fc16759e0b413980d311c960d6e3181f5"
+    },
+    {
+      "file": "xgameruntime-user-audio.patch",
+      "sha256": "5a7f0c396ea9a91ebbc2c1b6e684e0a45f910c4097523b0d35fb3b315d73a503"
+    }
+  ],
+  "expectedSources": {
+    "dlls/xgameruntime/Makefile.in": "703a51c5f2a25deb15543b43cf4136260c06118f20e921db617f183c76a2ea6f",
+    "dlls/xgameruntime/main.c": "aa854f8dab809f887d204acd16042ad571dbdb5c99720401aada12a003033699",
+    "dlls/xgameruntime/private.h": "5b5491ddd0be05807c8cac13bff38d8b0f2e6f87c82521202f34bcd7a684da31",
+    "dlls/xgameruntime/xerror.c": "f0dc4b456af5c4cfdcc1036f1dd422848a1ce97abd6cd1722bf654c51927b694",
+    "dlls/xgameruntime/xgame.c": "47ae0b3a0453a86dd2a315c5963437280dff1296e58521793e8e2cc8dcc32cba",
+    "dlls/xgameruntime/xgameactivation.c": "48a729040d7be7aac3e28b27aa06f8285bcef3f27767fa79ddfbe33c7b629dbc",
+    "dlls/xgameruntime/xgameinvite.c": "43c3459101f7da3a4bc6569d361f2d5f63f6a0e70006a0472c4ccb6f9bece41f",
+    "dlls/xgameruntime/xgameprotocol.c": "6936d5e24532832ee2e6928ea3a9a5217f8df830588b2e6e92920dd2cf1532d3",
+    "dlls/xgameruntime/xgameruntime.spec": "8e77261cdc459d2fe688c210c8024ee8eeb09057e679c3a38de941fde1a00d73",
+    "dlls/xgameruntime/xgamesave.c": "e5122eee6fd6d83bc6c2ff24f9ec8bac2cb145d840b752b28e2277190d95bd67",
+    "dlls/xgameruntime/xgamesave-transactions.h": "c4ecbbcfd0dec8af931bf033f3e7612e0e62e123231245d33d614c8f3e1b764b",
+    "dlls/xgameruntime/xgamesave.idl": "544319e88951f65b21c74f785fb9376c10cac8b1d57e98c7aa3079348162ccab",
+    "dlls/xgameruntime/xnetworking.c": "cfd8d0110b7ebd622f62317d3134dd866e6538e4a697b06912fa752517fe7caa",
+    "dlls/xgameruntime/xpackage.c": "5aa7f3a1431963c2d5f2371f1ad85c052fc589bf2bb759154ae62300e91233b7",
+    "dlls/xgameruntime/xpackage_content.h": "d3addb58053e44848bfb2be29d3568019196568ad98b605544b3506c03ed1c2f",
+    "dlls/xgameruntime/xpackage.idl": "189df1454b50e4cdf874592c6c5309985419c0ec20c5bf3dc69dba4bb62accde",
+    "dlls/xgameruntime/xpersistentlocalstorage.c": "48111212dcfe4ef328fa482dc8b426ef853b7c961d575aefeaa3b559788809b2",
+    "dlls/xgameruntime/xstore.c": "323183e6c7b6f627888dcd6c7d9be90bc1bf43cb8677b3be4fb06a1539947a5b",
+    "dlls/xgameruntime/xstore_entitled.h": "cae87da7943d625664c94b7179b47f1eedf2cd3dfd3192f99bd1a252b273e289",
+    "dlls/xgameruntime/xstore_receipts.h": "637cc315d72bb1ad20ce5529dfb6be4ef01ae8fd08a321aa5e852c1557c1d280",
+    "dlls/xgameruntime/xstore_package_license.h": "678f109e0a0af3f5e87951666f7c891af3999658f8698eb8855387ea355e2a31",
+    "dlls/xgameruntime/xsystem.c": "a3c151c5d05875b68f49c534aae9d40e3f15ec800af0f85e159ede7c95401880",
+    "dlls/xgameruntime/xsystemanalytics.c": "189e99c83273b429325ecefa2b9246c45863c22f0c4006a791ec57b8f7b9d384",
+    "dlls/xgameruntime/xthreading.c": "2cf262d75eb6da156f14f2702ccd3d59953da5bc8f4b898709c25d5489383361",
+    "dlls/xgameruntime/xuser.c": "603dc6efbb585544c4f1c1f117848268a09868a083758e4db131e2d19f2580db",
+    "dlls/xgameruntime/xuser_audio.h": "66ede45d4fc798612c8dc939b8903bccb0a023228a6618636fd6ed76ca8ed8a7",
+    "dlls/xgameruntime/xuser_device_events.h": "ed3b6ac25510b7bff288e36859781811e7de3985d418159ce25a2b00bc6d35cb",
+    "dlls/xgameruntime/xuser_privilege.h": "4aa9a2736b59feb4d86cb86d95d99119ab1ccb6ab07b6b9a53c7da61acd0a77b",
+    "dlls/xgameruntime/util.c": "aebf1a7ebef0dff89d3a1683bc40e16c821eaeb5cc1160ce474b905d14d7cb5c",
+    "dlls/xgameruntime/util.h": "b739dba8a69a36103e72afc8dcaeaf324470d9ed47a5a7dd81b18e4e511ae69a",
+    "dlls/xgameruntime/userprovider.idl": "66fb09670b7dabfc55257475094239018ea9a19ec2be348e56cf2b17ef615d7a",
+    "dlls/xgameruntime/xgamesavefiles.h": "5f21c809107e8c67659899a43f98143a4cbba744be5731cc5c68c177fdc7956a",
+    "dlls/xgameruntime/xstore_game_license.h": "8bcc2fd256c3e08ba59d9d5211ffb6f70e01a95cef6d0272ddf61bb8d284bffb",
+    "dlls/xgameruntime/xpackage_chunks.h": "7e62bdb9ea50c36d12e3dd208debf9b5fc75bd266f07141475bbad9afaaf11e6",
+    "dlls/xgameruntime/xpackage_monitors.h": "0ee4bf63bee0c907e395fa2bf347cf2634dd9960c7f08e8e84d92a6be1b8b86e",
+    "dlls/twinapi.appcore/main.c": "867b24b1a57331b9d28ba1355033e7b3a6f899bcccd6af024ea43c21b24c722e",
+    "dlls/twinapi.appcore/appstate-registration.h": "f011a711a77fd91a7d30d63f91adebcc31a2c161130af1160cd2b960f812f016"
+  },
+  "removed": [
+    {
+      "file": "wine-winhttp-http2.patch",
+      "reason": "winhttp is not shipped; iOdus uses its own winhttp proxy"
+    },
+    {
+      "file": "wine-winhttp-private-diagnostics-disabled.patch",
+      "reason": "winhttp is not shipped"
+    },
+    {
+      "file": "wine-mscoree-mono-path-bounds.patch",
+      "reason": "mscoree is not shipped"
+    },
+    {
+      "file": "wine-winhttp-gdk-options.patch",
+      "reason": "winhttp is not shipped"
+    },
+    {
+      "file": "wine-winhttp-response-options.patch",
+      "reason": "winhttp is not shipped"
+    },
+    {
+      "file": "wine-hlsl-state-keywords.patch",
+      "reason": "vkd3d is not used; D3DMetal replaces it"
+    }
+  ]
+}

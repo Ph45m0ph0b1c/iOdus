@@ -1,0 +1,224 @@
+--- a/dlls/winebus.sys/bus_sdl.c
++++ b/dlls/winebus.sys/bus_sdl.c
+@@ -28,6 +28,8 @@
+ #include <fcntl.h>
+ #include <stdarg.h>
+ #include <stdlib.h>
++#include <limits.h>
++#include <unistd.h>
+ #include <stdio.h>
+ #include <unistd.h>
+ #include <sys/types.h>
+@@ -68,6 +70,66 @@
+ static struct list event_queue = LIST_INIT(event_queue);
+ static struct list device_list = LIST_INIT(device_list);
+ 
++/* iOdus input gate. While the file C:\.iodus-input-gate exists (the iOdus
++ * overlay is open), the game gets one report with no buttons pressed and then
++ * no input. The device state stays current, so the real state goes to the game
++ * again when the file is gone. The services have no WINEPREFIX in their Unix
++ * environment, so ntdll gives the Unix path of C:\. */
++static BOOL input_gated;
++
++static char input_gate_path[PATH_MAX];
++static UINT gate_event = -1;
++
++/* Called once on a Wine thread (sdl_bus_init): ntdll needs a Wine thread. */
++static void init_input_gate_path(void)
++{
++    static const WCHAR drive_c[] = {'\\','?','?','\\','C',':','\\',0};
++    char *unix_name;
++
++    if (!ntdll_get_unix_file_name(drive_c, &unix_name, FILE_OPEN))
++    {
++        snprintf(input_gate_path, sizeof(input_gate_path), "%s/.iodus-input-gate", unix_name);
++        free(unix_name);
++    }
++    TRACE("iOdus input gate file %s\n", debugstr_a(input_gate_path));
++}
++
++static BOOL input_gate_file_exists(void)
++{
++    return input_gate_path[0] && !access(input_gate_path, F_OK);
++}
++
++static void *input_gate_watch(void *arg);
++
++static void queue_state_report(struct unix_device *iface)
++{
++    struct hid_device_state *state = &iface->hid_device_state;
++    if (input_gated) return;
++    bus_event_queue_input_report(&event_queue, iface, state->report_buf, state->report_len);
++}
++
++/* One report with all buttons up, the axes at 0 (centered sticks, released
++ * triggers), and the hat switches centered. The real state stays unchanged. */
++static void queue_neutral_report(struct unix_device *iface)
++{
++    struct hid_device_state *state = &iface->hid_device_state;
++    BYTE *saved;
++    ULONG i;
++
++    if (!(saved = malloc(state->report_len))) return;
++    memcpy(saved, state->report_buf, state->report_len);
++    for (i = 0; i < state->button_count; i++) hid_device_set_button(iface, i, FALSE);
++    for (i = 0; i < state->abs_axis_count; i++) hid_device_set_abs_axis(iface, i, 0);
++    for (i = 0; i < state->hatswitch_count; i++)
++    {
++        hid_device_set_hatswitch_x(iface, i, 0);
++        hid_device_set_hatswitch_y(iface, i, 0);
++    }
++    bus_event_queue_input_report(&event_queue, iface, state->report_buf, state->report_len);
++    memcpy(state->report_buf, saved, state->report_len);
++    free(saved);
++}
++
+ #define MAKE_FUNCPTR(f) static typeof(f) * p##f = NULL
+ MAKE_FUNCPTR(SDL_GetError);
+ MAKE_FUNCPTR(SDL_Init);
+@@ -818,7 +880,6 @@
+ static BOOL set_report_from_joystick_event(struct sdl_device *impl, SDL_Event *event)
+ {
+     struct unix_device *iface = &impl->unix_device;
+-    struct hid_device_state *state = &iface->hid_device_state;
+ 
+     if (impl->sdl_controller) return TRUE; /* use controller events instead */
+ 
+@@ -830,7 +891,7 @@
+             SDL_JoyButtonEvent *ie = &event->jbutton;
+ 
+             hid_device_set_button(iface, ie->button, ie->state);
+-            bus_event_queue_input_report(&event_queue, iface, state->report_buf, state->report_len);
++            queue_state_report(iface);
+             break;
+         }
+         case SDL_JOYAXISMOTION:
+@@ -838,7 +899,7 @@
+             SDL_JoyAxisEvent *ie = &event->jaxis;
+ 
+             if (!hid_device_set_abs_axis(iface, ie->axis, ie->value)) break;
+-            bus_event_queue_input_report(&event_queue, iface, state->report_buf, state->report_len);
++            queue_state_report(iface);
+             break;
+         }
+         case SDL_JOYBALLMOTION:
+@@ -847,7 +908,7 @@
+ 
+             if (!hid_device_set_rel_axis(iface, 2 * ie->ball, ie->xrel)) break;
+             hid_device_set_rel_axis(iface, 2 * ie->ball + 1, ie->yrel);
+-            bus_event_queue_input_report(&event_queue, iface, state->report_buf, state->report_len);
++            queue_state_report(iface);
+             break;
+         }
+         case SDL_JOYHATMOTION:
+@@ -855,7 +916,7 @@
+             SDL_JoyHatEvent *ie = &event->jhat;
+ 
+             set_hat_value(iface, ie->hat, ie->value);
+-            bus_event_queue_input_report(&event_queue, iface, state->report_buf, state->report_len);
++            queue_state_report(iface);
+             break;
+         }
+         default:
+@@ -869,7 +930,6 @@
+ static BOOL set_report_from_controller_event(struct sdl_device *impl, SDL_Event *event)
+ {
+     struct unix_device *iface = &impl->unix_device;
+-    struct hid_device_state *state = &iface->hid_device_state;
+ 
+     switch (event->type)
+     {
+@@ -905,7 +965,7 @@
+             if (button == 13) hid_device_move_hatswitch(iface, 0, ie->state ? -1 : +1, 0);
+             if (button == 11) hid_device_move_hatswitch(iface, 0, ie->state ? +1 : -1, 0);
+             hid_device_set_button(iface, button, ie->state);
+-            bus_event_queue_input_report(&event_queue, iface, state->report_buf, state->report_len);
++            queue_state_report(iface);
+             break;
+         }
+         case SDL_CONTROLLERAXISMOTION:
+@@ -916,7 +976,7 @@
+                 ie->value = -ie->value - 1; /* match XUSB / GIP protocol */
+ 
+             hid_device_set_abs_axis(iface, ie->axis, ie->value);
+-            bus_event_queue_input_report(&event_queue, iface, state->report_buf, state->report_len);
++            queue_state_report(iface);
+             break;
+         }
+         default:
+@@ -1166,6 +1226,15 @@
+     {
+         ERR("error registering quit event\n");
+         goto failed;
++    }
++
++    /* iOdus input gate: a wake event and the thread that watches the file. */
++    init_input_gate_path();
++    if (input_gate_path[0] && (gate_event = pSDL_RegisterEvents(1)) != -1)
++    {
++        pthread_t thread;
++        if (!pthread_create(&thread, NULL, input_gate_watch, NULL)) pthread_detach(thread);
++        else ERR("could not start the iOdus input gate thread\n");
+     }
+ 
+     pSDL_JoystickEventState(SDL_ENABLE);
+@@ -1194,8 +1263,46 @@
+     dlclose(sdl_handle);
+     sdl_handle = NULL;
+     return STATUS_UNSUCCESSFUL;
++}
++
++/* SDL_WaitEventTimeout does not always return after its timeout, so the bus
++ * loop cannot check the file itself. This thread checks it every 20 ms and
++ * wakes the loop with gate_event when it changes. It only calls access(). */
++static void *input_gate_watch(void *arg)
++{
++    BOOL last = FALSE, now;
++    SDL_Event event;
++
++    for (;;)
++    {
++        usleep(20000);
++        if ((now = input_gate_file_exists()) == last) continue;
++        last = now;
++        memset(&event, 0, sizeof(event));
++        event.type = gate_event;
++        pSDL_PushEvent(&event);
++    }
++    return NULL;
+ }
+ 
++static void update_input_gate(void)
++{
++    struct sdl_device *impl;
++    BOOL gated;
++
++    if ((gated = input_gate_file_exists()) == input_gated) return;
++
++    pthread_mutex_lock(&sdl_cs);
++    input_gated = gated;
++    TRACE("iOdus input gate %s\n", gated ? "on" : "off");
++    LIST_FOR_EACH_ENTRY(impl, &device_list, struct sdl_device, unix_device.entry)
++    {
++        if (gated) queue_neutral_report(&impl->unix_device);
++        else queue_state_report(&impl->unix_device);
++    }
++    pthread_mutex_unlock(&sdl_cs);
++}
++
+ NTSTATUS sdl_bus_wait(void *args)
+ {
+     struct bus_event *result = args;
+@@ -1207,7 +1314,11 @@
+     do
+     {
+         if (bus_event_queue_pop(&event_queue, result)) return STATUS_PENDING;
+-        if (pSDL_WaitEventTimeout(&event, 10) != 0) process_device_event(&event);
++        if (pSDL_WaitEventTimeout(&event, 10) != 0)
++        {
++            if (event.type == gate_event) update_input_gate();
++            else process_device_event(&event);
++        }
+         else check_all_devices_effects_state();
+     } while (event.type != quit_event);
+ 

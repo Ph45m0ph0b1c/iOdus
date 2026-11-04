@@ -1,0 +1,13 @@
+--- a/dlls/xgameruntime/util.c
++++ b/dlls/xgameruntime/util.c
+@@ -138,6 +138,10 @@
+     if (!(connection = WinHttpConnect( session, hostName, uc.nPort, 0 ))) goto error;
+     if (!(request = WinHttpOpenRequest( connection, method, uc.lpszUrlPath, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                         uc.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0 ))) goto error;
++    /* Wine sends no Content-Length for an empty body. Xbox Live title storage
++     * then answers 411 Length Required (for example the cloud save lock PUT). */
++    if (!bodySize && (!wcscmp( method, L"PUT" ) || !wcscmp( method, L"POST" )))
++        WinHttpAddRequestHeaders( request, L"Content-Length: 0", -1, WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE );
+     if (!WinHttpSendRequest( request, headers ? headers : WINHTTP_NO_ADDITIONAL_HEADERS, headers ? -1 : 0, (void *)body, bodySize, bodySize, 0 )) goto error;
+     if (!WinHttpReceiveResponse( request, NULL )) goto error;
+     if (!WinHttpQueryHeaders( request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,

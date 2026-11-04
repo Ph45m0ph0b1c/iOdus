@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- xodus-cli starts Wine, and Wine finds GnuTLS and FreeType in the runtime
+	     through DYLD_FALLBACK_LIBRARY_PATH. Without this entitlement, the
+	     hardened runtime removes all DYLD_* variables from xodus-cli, so Wine
+	     does not get them. -->
+	<key>com.apple.security.cs.allow-dyld-environment-variables</key>
+	<true/>
+</dict>
+</plist>

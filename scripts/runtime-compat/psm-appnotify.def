@@ -1,0 +1,7 @@
+; Forwards the app state API set to twinapi.appcore, as in Wine 11.
+; The module name needs ".dll", because "twinapi.appcore" already has a dot.
+; The GPTK Wine (Wine 7.7) has only stubs for these functions.
+LIBRARY api-ms-win-core-psm-appnotify-l1-1-0.dll
+EXPORTS
+RegisterAppStateChangeNotification = twinapi.appcore.dll.RegisterAppStateChangeNotification
+UnregisterAppStateChangeNotification = twinapi.appcore.dll.UnregisterAppStateChangeNotification

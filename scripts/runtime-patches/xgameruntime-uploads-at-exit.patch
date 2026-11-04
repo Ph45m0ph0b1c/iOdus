@@ -1,0 +1,235 @@
+--- a/dlls/xgameruntime/main.c
++++ b/dlls/xgameruntime/main.c
+@@ -190,6 +190,14 @@
+     hr = initialize_runtime( gdkVer, gsVer, mode, options );
+     ReleaseSRWLockExclusive( &initialize_lock );
+     return hr;
++}
++
++/* iOdus: initialize from the MicrosoftGame.config of a game, for a helper
++ * process (rundll32) that is not the game executable. */
++HRESULT xgameruntime_initialize_config( const char *path )
++{
++    struct initialize_options options = { 0, FALSE, path };
++    return InitializeApiImplEx2( 0, 0, 0, &options );
+ }
+ 
+ HRESULT WINAPI InitializeApiImplEx( ULONG gdkVer, ULONG gsVer, char mode )
+--- a/dlls/xgameruntime/private.h
++++ b/dlls/xgameruntime/private.h
+@@ -73,6 +73,8 @@
+ HRESULT xpackage_query_identifier( const char *store, SIZE_T size, char *identifier );
+ HRESULT xpackage_query_content_store( const char *identifier, SIZE_T size, char *store );
+ extern char *packageFamilyName;
++HRESULT xgameruntime_initialize_config( const char *path );
++HRESULT WINAPI NexusRegisterCloudShutdown( HRESULT (WINAPI *callback)( void * ), void *context );
+ UINT64 xuser_get_xuid( XUserHandle user );
+ BOOL xuser_is_current_user( XUserHandle user );
+ void xuser_presence_stop( void );
+--- a/dlls/xgameruntime/xgameruntime.spec
++++ b/dlls/xgameruntime/xgameruntime.spec
+@@ -7,3 +7,4 @@
+ @ stdcall -private NexusRegisterCloudShutdown(ptr ptr)
+ @ stub -private XErrorReport(long str)
+ @ stdcall -private XodusSaveFilesMonitor(long long str long)
++@ stdcall -private XodusSyncSavesW(long long wstr long)
+--- a/dlls/xgameruntime/xgamesave.c
++++ b/dlls/xgameruntime/xgamesave.c
+@@ -132,7 +132,9 @@
+     HANDLE upload_event;
+     HANDLE upload_thread;
+     BOOL upload_stopping;
++    BOOL uploads_ready;                 /* cloud_cs, upload_event and the worker exist */
+     struct save_upload *uploads;
++    struct XGameSaveProvider *next_open;
+ };
+ 
+ struct XGameSaveContainer
+@@ -1033,6 +1035,9 @@
+ static void queue_upload( struct XGameSaveProvider *provider, const char *name )
+ {
+     struct save_upload *upload, **tail;
++    /* After the drain at runtime shutdown, nothing uploads. The index stays
++     * dirty, so the next sync uploads it. */
++    if (provider->upload_stopping) return;
+     cancel_pending_upload( provider, name );
+     if (!(upload = snapshot_upload( provider, name )))
+     {
+@@ -1347,6 +1352,8 @@
+     return hr;
+ }
+ 
++static void add_open_provider( struct XGameSaveProvider *provider );
++
+ static HRESULT initialize_provider( XUserHandle user, const char *configurationId, XGameSaveProviderHandle *out )
+ {
+     struct XGameSaveProvider *provider;
+@@ -1405,6 +1412,8 @@
+             free( provider );
+             return hr;
+         }
++        provider->uploads_ready = TRUE;
++        add_open_provider( provider );
+     }
+ 
+     TRACE( "provider %p, root %s, cloud %d, downloaded %u, uploaded %u.\n", provider, debugstr_a( provider->root ), provider->cloud, provider->downloaded, provider->uploaded );
+@@ -1428,22 +1437,86 @@
+     return TRUE;
+ }
+ 
+-static void close_provider( struct XGameSaveProvider *provider )
++/* Stops the upload worker after its queue is empty, then makes one last
++ * upload of each container that is still dirty. A second call does nothing. */
++static void drain_uploads( struct XGameSaveProvider *provider )
+ {
+-    if (!provider) return;
+-    if (provider->upload_thread)
++    HANDLE thread;
++
++    EnterCriticalSection( &provider->cs );
++    thread = provider->upload_thread;
++    provider->upload_thread = NULL;
++    if (thread)
+     {
+-        EnterCriticalSection( &provider->cs );
+         provider->upload_stopping = TRUE;
+         SetEvent( provider->upload_event );
+-        LeaveCriticalSection( &provider->cs );
+-        /* Keep the user, provider and remote session alive until all queued
+-         * snapshots finish. Abrupt process termination is not a cloud ack. */
+-        WaitForSingleObject( provider->upload_thread, INFINITE );
+-        /* Includes snapshots that could not be allocated and genuine upload
+-         * failures. One final attempt, never a busy retry loop. */
+-        enumerate_local( provider, flush_dirty_upload, NULL );
+-        CloseHandle( provider->upload_thread );
++    }
++    LeaveCriticalSection( &provider->cs );
++    if (!thread) return;
++    /* Keep the user, provider and remote session alive until all queued
++     * snapshots finish. Abrupt process termination is not a cloud ack. */
++    WaitForSingleObject( thread, INFINITE );
++    CloseHandle( thread );
++    /* Includes snapshots that could not be allocated and genuine upload
++     * failures. One final attempt, never a busy retry loop. */
++    enumerate_local( provider, flush_dirty_upload, NULL );
++}
++
++/* iOdus: the open providers with cloud saves. Many games write a save when
++ * the player quits, and then end the process at once. The upload worker
++ * then stops in the middle of the upload. XGameRuntimeUninitialize is the
++ * last safe point: it drains the uploads of all open providers. */
++static SRWLOCK open_lock = SRWLOCK_INIT;
++static struct XGameSaveProvider *open_providers;
++
++static HRESULT WINAPI drain_open_providers( void *context )
++{
++    struct XGameSaveProvider *provider;
++
++    AcquireSRWLockExclusive( &open_lock );
++    for (provider = open_providers; provider; provider = provider->next_open)
++    {
++        drain_uploads( provider );
++        cloud_unlock( provider, FALSE );
++    }
++    ReleaseSRWLockExclusive( &open_lock );
++    return S_OK;
++}
++
++static void add_open_provider( struct XGameSaveProvider *provider )
++{
++    HRESULT hr = NexusRegisterCloudShutdown( drain_open_providers, NULL );
++    if (FAILED(hr)) WARN( "cannot register the save drain at shutdown, hr %#lx.\n", hr );
++    AcquireSRWLockExclusive( &open_lock );
++    provider->next_open = open_providers;
++    open_providers = provider;
++    ReleaseSRWLockExclusive( &open_lock );
++}
++
++static void remove_open_provider( struct XGameSaveProvider *provider )
++{
++    struct XGameSaveProvider **link;
++
++    /* Waits for a drain that runs now, so that the provider stays valid. */
++    AcquireSRWLockExclusive( &open_lock );
++    for (link = &open_providers; *link; link = &(*link)->next_open)
++    {
++        if (*link == provider)
++        {
++            *link = provider->next_open;
++            break;
++        }
++    }
++    ReleaseSRWLockExclusive( &open_lock );
++}
++
++static void close_provider( struct XGameSaveProvider *provider )
++{
++    if (!provider) return;
++    remove_open_provider( provider );
++    if (provider->uploads_ready)
++    {
++        drain_uploads( provider );
+         CloseHandle( provider->upload_event );
+         DeleteCriticalSection( &provider->cloud_cs );
+     }
+@@ -2264,3 +2337,60 @@
+ };
+ 
+ IXGameSaveImpl *x_game_save_impl = (IXGameSaveImpl *)&x_game_save.IXGameSaveImpl3_iface;
++
++/* iOdus: rundll32 xgameruntime.dll,XodusSyncSaves <Windows path of MicrosoftGame.config>
++ *
++ * iOdus starts this helper after a game process ends, when a save of the game
++ * is still dirty: the game wrote it just before it ended, and the upload did
++ * not finish. The helper signs in silently and opens the save provider of the
++ * title. That runs the same sync as a game start: a dirty save uploads when
++ * the cloud did not change, and a changed cloud gives the sync-conflict file.
++ * Then the provider closes, which waits for the uploads.
++ *
++ * The helper never sets the title presence: it is not a game session.
++ * It prints one line "iodus-savesync: ..." and ends with exit code 0 when the
++ * cloud sync ran, 2 when cloud saves were off (conflict or error), else 1. */
++void CALLBACK XodusSyncSavesW( HWND hwnd, HINSTANCE instance, WCHAR *cmdline, int show )
++{
++    struct XGameSaveProvider *provider = NULL;
++    IXThreadingImpl *threads = NULL;
++    XAsyncBlock async = { 0 };
++    XUserHandle user = NULL;
++    char path[MAX_PATH * 3], scid[64];
++    const WCHAR *start = cmdline, *end;
++    UINT32 uploaded = 0, downloaded = 0;
++    BOOL cloud = FALSE;
++    HRESULT hr;
++    int len;
++
++    SetEnvironmentVariableA( "IODUS_PRESENCE", "0" );
++    if (!start) start = L"";
++    while (*start == ' ' || *start == '"') start++;
++    end = start + lstrlenW( start );
++    while (end > start && (end[-1] == ' ' || end[-1] == '"' || end[-1] == '\r' || end[-1] == '\n')) end--;
++    len = end > start ? WideCharToMultiByte( CP_ACP, 0, start, end - start, path, sizeof(path) - 1, NULL, NULL ) : 0;
++    if (len <= 0) { hr = E_INVALIDARG; goto done; }
++    path[len] = 0;
++
++    if (FAILED(hr = xgameruntime_initialize_config( path ))) goto done;
++    /* Without the package identity, the provider has no cloud saves. */
++    if (!packageFamilyName || !titleId) { hr = E_GAMERUNTIME_GAMECONFIG_BAD_FORMAT; goto done; }
++    snprintf( scid, sizeof(scid), "00000000-0000-0000-0000-0000%08x", titleId );
++
++    if (FAILED(hr = QueryApiImpl( &CLSID_XThreadingImpl, &IID_IXThreadingImpl, (void **)&threads ))) goto done;
++    if (FAILED(hr = IXUserImpl_XUserAddAsync( x_user_impl, XUserAddOptions_AddDefaultUserSilently, &async )) ||
++        FAILED(hr = IXThreadingImpl_XAsyncGetStatus( threads, &async, TRUE )) ||
++        FAILED(hr = IXUserImpl_XUserAddResult( x_user_impl, &async, &user ))) goto done;
++
++    if (FAILED(hr = initialize_provider( user, scid, &provider ))) goto done;
++    cloud = provider->cloud;
++    downloaded = provider->downloaded;
++    uploaded = provider->uploaded;
++    close_provider( provider );
++
++done:
++    MESSAGE( "iodus-savesync: hr %#lx cloud %d downloaded %u uploaded %u\n", hr, cloud, downloaded, uploaded );
++    if (user) IXUserImpl_XUserCloseHandle( x_user_impl, user );
++    if (threads) IXThreadingImpl_Release( threads );
++    ExitProcess( FAILED(hr) ? 1 : cloud ? 0 : 2 );
++}

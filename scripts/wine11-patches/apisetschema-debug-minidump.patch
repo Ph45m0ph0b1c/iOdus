@@ -1,0 +1,14 @@
+Adds the minidump API set (MiniDumpWriteDump, MiniDumpReadDumpStream).
+Windows maps it to dbgcore.dll; Wine has these functions in dbghelp.dll.
+Without the entry, games that import it do not start (DIRT 5: status c0000135).
+
+--- a/dlls/apisetschema/apisetschema.spec	2026-11-03 23:45:19
++++ b/dlls/apisetschema/apisetschema.spec	2026-11-03 23:45:19
+@@ -33,6 +33,7 @@
+ apiset api-ms-win-core-crt-l2-1-0 = msvcrt.dll
+ apiset api-ms-win-core-datetime-l1-1-1 = kernelbase.dll
+ apiset api-ms-win-core-debug-l1-1-1 = kernelbase.dll
++apiset api-ms-win-core-debug-minidump-l1-1-0 = dbghelp.dll
+ apiset api-ms-win-core-delayload-l1-1-1 = kernelbase.dll
+ apiset api-ms-win-core-enclave-l1-1-1 = kernelbase.dll
+ apiset api-ms-win-core-errorhandling-l1-1-3 = kernelbase.dll

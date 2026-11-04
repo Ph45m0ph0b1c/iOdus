@@ -1,0 +1,7 @@
+; The minidump API set, as on Windows (there it goes to dbgcore.dll). Wine has
+; no entry for it in its API set schema, so games that import it (DIRT 5) do not
+; start. Wine's dbghelp.dll has both functions.
+LIBRARY api-ms-win-core-debug-minidump-l1-1-0.dll
+EXPORTS
+MiniDumpReadDumpStream = dbghelp.MiniDumpReadDumpStream
+MiniDumpWriteDump = dbghelp.MiniDumpWriteDump

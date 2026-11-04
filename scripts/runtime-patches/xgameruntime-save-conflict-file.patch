@@ -1,0 +1,44 @@
+--- a/dlls/xgameruntime/xgamesave.c
++++ b/dlls/xgameruntime/xgamesave.c
+@@ -1200,7 +1200,25 @@
+ }
+ 
+ static HRESULT files_cloud_download( struct XGameSaveProvider *, const char *, const char *, const char * );
++
++/* iOdus: a save conflict is recorded in <root>\sync-conflict, so that the
++ * launcher can ask the player which save to keep (XODUS_SAVE_SYNC). */
++static void write_conflict( struct XGameSaveProvider *provider, const char *name, UINT64 local, const char *remote )
++{
++    char path[2048], text[512];
++    int len;
++    snprintf( path, sizeof(path), "%s\\sync-conflict", provider->root );
++    len = snprintf( text, sizeof(text), "container %s\nlocal %I64u\nremote %s\n", name, local, remote ? remote : "-" );
++    if (len > 0 && len < sizeof(text)) write_file( path, text, len );
++}
+ 
++static void clear_conflict( struct XGameSaveProvider *provider )
++{
++    char path[2048];
++    snprintf( path, sizeof(path), "%s\\sync-conflict", provider->root );
++    DeleteFileA( path );
++}
++
+ static HRESULT cloud_sync( struct XGameSaveProvider *provider )
+ {
+     struct remote_container *remote = NULL;
+@@ -1278,6 +1296,7 @@
+         if (exists && state.dirty && remoteChanged && mode == SYNC_AUTO)
+         {
+             /* Never silently overwrite either side of a save conflict. */
++            write_conflict( provider, remote[i].name, state.time, remote[i].time );
+             free_state( &state );
+             hr = E_GS_CONTAINER_NOT_IN_SYNC;
+             goto done;
+@@ -1359,6 +1378,7 @@
+     if (provider->cloud)
+     {
+         hr = cloud_sync( provider );
++        if (SUCCEEDED(hr)) clear_conflict( provider );
+         if (FAILED(hr))
+         {
+             ERR( "cloud sync failed, hr %#lx.\n", hr );

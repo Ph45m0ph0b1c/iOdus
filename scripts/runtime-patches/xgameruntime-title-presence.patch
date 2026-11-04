@@ -1,0 +1,190 @@
+--- a/dlls/xgameruntime/main.c
++++ b/dlls/xgameruntime/main.c
+@@ -224,6 +224,7 @@
+     HRESULT (WINAPI *callback)( void * );
+     void *context;
+     TRACE( "\n" );
++    xuser_presence_stop();
+     AcquireSRWLockShared( &shutdown_lock );
+     callback = shutdown_callback;
+     context = shutdown_context;
+--- a/dlls/xgameruntime/private.h
++++ b/dlls/xgameruntime/private.h
+@@ -75,6 +75,7 @@
+ extern char *packageFamilyName;
+ UINT64 xuser_get_xuid( XUserHandle user );
+ BOOL xuser_is_current_user( XUserHandle user );
++void xuser_presence_stop( void );
+ HRESULT xuser_device_authorization( XUserHandle user, const char *relyingParty, char **auth );
+ HRESULT xuser_signed_request( XUserHandle user, const char *method, const char *url, const char *auth, const char *extraHeaders,
+                               const void *body, DWORD bodySize, DWORD *status, BYTE **buffer, SIZE_T *bufferSize );
+--- a/dlls/xgameruntime/xuser.c
++++ b/dlls/xgameruntime/xuser.c
+@@ -1160,6 +1160,8 @@
+       0, 0, { (DWORD_PTR)(__FILE__ ": signed_in_section") }
+ };
+ static CRITICAL_SECTION signed_in_section = { &signed_in_section_debug, -1, 0, 0, 0, 0 };
++
++static void presence_start( struct XUser *user );
+ 
+ static void set_signed_in_user( struct XUser *user )
+ {
+@@ -1168,6 +1170,7 @@
+     if (signed_in_user) IUser_Release( &signed_in_user->IUser_iface );
+     signed_in_user = user;
+     LeaveCriticalSection( &signed_in_section );
++    presence_start( user );
+ }
+ 
+ BOOL xuser_is_current_user( XUserHandle user )
+@@ -2769,4 +2772,150 @@
+     }
+     LeaveCriticalSection( &user->deviceAuthSection );
+     return hr;
++}
++
++
++/* iOdus: Xbox title presence.
++ *
++ * On Windows, Gaming Services tell Xbox Live which title runs. Xbox Live then
++ * shows "Playing <game>" to friends and records the title history. In Wine
++ * nothing does this, so the runtime sends the presence itself: a signed POST
++ * every 60 seconds while the signed-in user plays, and one DELETE at the
++ * normal runtime shutdown. The XSTS token includes the title token, so Xbox
++ * Live knows the title. Errors stop only the presence. IODUS_PRESENCE=0 turns
++ * it off. Tokens and signatures are never logged. */
++
++#define PRESENCE_INTERVAL   60000           /* ms between updates */
++#define PRESENCE_BACKOFF    300000          /* ms after HTTP 429 or a client error */
++#define PRESENCE_TOKEN_AGE  (30 * 60000)    /* ms until a new XSTS token */
++#define PRESENCE_MAX_ERRORS 5
++
++static HANDLE presence_thread;
++static HANDLE presence_stop_event;
++static LONG presence_started;
++
++struct presence_state
++{
++    struct XUser *user;
++    char *auth;
++    ULONGLONG auth_time;
++};
++
++static BOOL presence_enabled( void )
++{
++    char value[8];
++    DWORD len = GetEnvironmentVariableA( "IODUS_PRESENCE", value, sizeof(value) );
++    return !(len && len < sizeof(value) && !strcmp( value, "0" ));
+ }
++
++/* Sends one presence request. Returns the HTTP status, or 0 for a network error. */
++static DWORD presence_send( struct presence_state *state, const char *method )
++{
++    static const char body[] = "{\"state\":\"active\"}";
++    BOOL post = !strcmp( method, "POST" );
++    BYTE *buffer = NULL;
++    SIZE_T size = 0;
++    DWORD status = 0;
++    char url[160];
++
++    if (state->auth && GetTickCount64() - state->auth_time > PRESENCE_TOKEN_AGE)
++    {
++        free( state->auth );
++        state->auth = NULL;
++    }
++    if (!state->auth)
++    {
++        if (FAILED(xsts_authorize( state->user, "http://xboxlive.com", TRUE, &state->auth )) || !state->auth)
++            return 0;
++        state->auth_time = GetTickCount64();
++    }
++
++    snprintf( url, sizeof(url), "https://userpresence.xboxlive.com/users/xuid(%I64u)/devices/current/titles/current",
++              state->user->xuid );
++    if (FAILED(xuser_signed_request( state->user, method, url, state->auth,
++                                     "x-xbl-contract-version: 3\r\nContent-Type: application/json\r\n",
++                                     post ? body : NULL, post ? strlen( body ) : 0, &status, &buffer, &size )))
++        status = 0;
++    free( buffer );
++    if (status == 401 || status == 403)
++    {
++        /* A new token at the next attempt. */
++        free( state->auth );
++        state->auth = NULL;
++    }
++    TRACE( "presence %s: HTTP %lu.\n", method, status );
++    return status;
++}
++
++static DWORD WINAPI presence_thread_proc( void *arg )
++{
++    struct presence_state state = { arg, NULL, 0 };
++    DWORD wait = 0, status;
++    int errors = 0;
++    BOOL active = FALSE;
++
++    while (WaitForSingleObject( presence_stop_event, wait ) == WAIT_TIMEOUT)
++    {
++        if (!xuser_is_current_user( state.user )) break;
++        status = presence_send( &state, "POST" );
++        if (status == 200 || status == 201 || status == 204)
++        {
++            if (!active) TRACE( "title presence is active.\n" );
++            active = TRUE;
++            errors = 0;
++            wait = PRESENCE_INTERVAL;
++            continue;
++        }
++        WARN( "title presence update failed, HTTP %lu.\n", status );
++        if (++errors >= PRESENCE_MAX_ERRORS) break;
++        wait = (status == 429 || (status >= 400 && status < 500 && status != 401 && status != 403))
++               ? PRESENCE_BACKOFF : PRESENCE_INTERVAL;
++    }
++
++    /* The game stopped or the user changed: remove the presence. */
++    if (active) presence_send( &state, "DELETE" );
++    free( state.auth );
++    IUser_Release( &state.user->IUser_iface );
++    return 0;
++}
++
++static LPTOP_LEVEL_EXCEPTION_FILTER presence_previous_filter;
++
++/* A crash: the process ends without the normal runtime shutdown. Before Wine
++ * ends the process, stop the presence thread, so that it sends the DELETE.
++ * Wait at most 3 seconds. Then give the crash to the earlier filter. A game
++ * can set its own filter later; then this filter does not run, and the
++ * presence stays until it expires on Xbox Live. */
++static LONG WINAPI presence_crash_filter( EXCEPTION_POINTERS *info )
++{
++    if (presence_thread && presence_stop_event)
++    {
++        SetEvent( presence_stop_event );
++        WaitForSingleObject( presence_thread, 3000 );
++    }
++    return presence_previous_filter ? presence_previous_filter( info ) : EXCEPTION_CONTINUE_SEARCH;
++}
++
++static void presence_start( struct XUser *user )
++{
++    if (!presence_enabled()) return;
++    if (InterlockedCompareExchange( &presence_started, 1, 0 )) return;
++    if (!(presence_stop_event = CreateEventW( NULL, TRUE, FALSE, NULL ))) return;
++    IUser_AddRef( &user->IUser_iface );
++    if (!(presence_thread = CreateThread( NULL, 0, presence_thread_proc, user, 0, NULL )))
++    {
++        IUser_Release( &user->IUser_iface );
++        CloseHandle( presence_stop_event );
++        presence_stop_event = NULL;
++        return;
++    }
++    presence_previous_filter = SetUnhandledExceptionFilter( presence_crash_filter );
++}
++
++/* Called at the normal runtime shutdown. Waits at most 5 seconds for the DELETE. */
++void xuser_presence_stop( void )
++{
++    if (!presence_thread) return;
++    SetEvent( presence_stop_event );
++    WaitForSingleObject( presence_thread, 5000 );
++}

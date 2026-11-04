@@ -1,0 +1,32 @@
+--- a/dlls/xgameruntime/private.h	2026-11-02 14:31:10
++++ b/dlls/xgameruntime/private.h	2026-11-02 14:31:10
+@@ -113,3 +113,29 @@
+ extern IXUserDeviceImpl *x_user_device_impl;
+ 
+ HRESULT WINAPI QueryApiImpl( const GUID *classId, REFIID interfaceId, void **out );
++
++/* iOdus: the GPTK Wine (Wine 7.7) bcrypt does not accept the Windows 10
++ * algorithm pseudo-handles (BCRYPT_SHA256_ALG_HANDLE is the constant 0x41).
++ * Open a real provider once and use it instead. */
++#include <bcrypt.h>
++
++static inline BCRYPT_ALG_HANDLE iodus_bcrypt_alg( BCRYPT_ALG_HANDLE volatile *cache, const WCHAR *id )
++{
++    BCRYPT_ALG_HANDLE handle = *cache;
++    if (handle) return handle;
++    if (BCryptOpenAlgorithmProvider( &handle, id, NULL, 0 )) return NULL;
++    if (InterlockedCompareExchangePointer( (void **)cache, handle, NULL ))
++    {
++        BCryptCloseAlgorithmProvider( handle, 0 );
++        handle = *cache;
++    }
++    return handle;
++}
++
++static BCRYPT_ALG_HANDLE volatile iodus_sha256_alg __attribute__((unused));
++static BCRYPT_ALG_HANDLE volatile iodus_ecdsa_p256_alg __attribute__((unused));
++
++#undef BCRYPT_SHA256_ALG_HANDLE
++#define BCRYPT_SHA256_ALG_HANDLE iodus_bcrypt_alg( &iodus_sha256_alg, BCRYPT_SHA256_ALGORITHM )
++#undef BCRYPT_ECDSA_P256_ALG_HANDLE
++#define BCRYPT_ECDSA_P256_ALG_HANDLE iodus_bcrypt_alg( &iodus_ecdsa_p256_alg, BCRYPT_ECDSA_P256_ALGORITHM )

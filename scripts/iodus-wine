@@ -1,0 +1,7 @@
+#!/bin/sh
+# Runs the Game Porting Toolkit Wine that iOdus uses, with the iOdus Wine prefix.
+# Usage: iodus-wine <wine arguments>   (for example: iodus-wine wineboot --init)
+# IODUS_WINE_BIN can select wineserver instead of wine64.
+RUNTIME="$HOME/Library/Application Support/iOdus/Runtime/gptk-3.0-3/Game Porting Toolkit.app/Contents/Resources/wine/bin"
+export WINEPREFIX="${WINEPREFIX:-$HOME/Library/Application Support/iOdus/Prefix}"
+exec "$RUNTIME/${IODUS_WINE_BIN:-wine64}" "$@"

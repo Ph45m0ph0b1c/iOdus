@@ -1,0 +1,6 @@
+; The iOdus d3d11 proxy. See d3d11-proxy.c.
+LIBRARY d3d11.dll
+EXPORTS
+D3D11CreateDevice
+D3D11CreateDeviceAndSwapChain
+D3D11On12CreateDevice

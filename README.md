@@ -111,6 +111,7 @@ iOdus finds `xodus-cli` in this order: `$IODUS_XODUS_CLI`, the app bundle, then
 | Script | What it does |
 |---|---|
 | `scripts/build-app.sh [--notarize] [version]` | Builds `build/iOdus.app` with the backend, the runtime DLLs, and the icon. Signs it with the hardened runtime. With `--notarize`, Apple notarizes it (notary profile `iodus-notary`) and the ticket is stapled. |
+| `scripts/make-dmg.sh [--notarize]` | Makes `build/iOdus-<version>.dmg` from `build/iOdus.app`: the app, an Applications link, and a background (`scripts/dmg/background.swift`). Signs it, and with `--notarize`, notarizes and staples it. Uses only macOS tools. |
 | `scripts/build-runtime.sh <work folder>` | Builds `xgameruntime.dll` and the other Xbox runtime DLLs from the pinned Xodus Wine source, the patches in `scripts/nexus-runtime-patches/` (from Xodus Nexus) and `scripts/runtime-patches/`. Also builds the proxies in `scripts/runtime-compat/`. Needs no other checkout. |
 | `scripts/build-wine-runtime.sh [<work folder>]` | Builds the Wine 11 runtime ("CrossOver 26.3 Wine") from the pinned CrossOver source. Stages: `source`, `deps`, `wine`, `assemble`, `d3dmetal`, `package`. |
 | `scripts/sign-backend.sh` | Signs `xodus-cli` and `xodus-service` with the same identity and entitlements as the app. |

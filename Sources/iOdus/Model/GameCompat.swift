@@ -14,6 +14,11 @@ enum GameCompat {
         // AMD GPU, and the game then takes an AMD-only path and crashes. With an
         // Intel GPU it starts (found by Highball). The game also needs D3DMetal 4
         // (the crossover-26.3-d3dm4 runtime): with D3DMetal 3 it stops with FH205.
+        // Grim Fandango Remastered asks for an OpenGL 3.3 core context without
+        // the forward-compatible flag. macOS has only forward-compatible core
+        // contexts, so the Mac driver refuses it; CrossOver's switch adds the
+        // flag (issue #4; the Wine 11 runtime also needs winemac-wgl-no-error.patch).
+        "9PC288TN7R8K": ["CX_FWD_COMPAT_GL_CTX": "1"],
         "9NR1R1XWLCNB": forzaHorizon6,
         "9N431PX143P8": forzaHorizon6,
         "9N4XW3N02MNJ": forzaHorizon6,

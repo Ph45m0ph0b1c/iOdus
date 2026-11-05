@@ -1,0 +1,25 @@
+winemac.drv: accept WGL_CONTEXT_OPENGL_NO_ERROR_ARB.
+
+win32u lists WGL_ARB_create_context_no_error for every driver, but the Mac
+driver refused the attribute as unknown, so wglCreateContextAttribsARB failed
+with ERROR_INVALID_PARAMETER. Grim Fandango Remastered asks for a 3.3 core
+context with WGL_CONTEXT_OPENGL_NO_ERROR_ARB = 0 and stops with "required
+OpenGL features aren't available" (iOdus issue #4; Wine bug 60492). The
+attribute only allows the driver to skip error checks, so it is ignored.
+
+--- a/dlls/winemac.drv/opengl.c
++++ b/dlls/winemac.drv/opengl.c
+@@ -2141,6 +2141,13 @@
+                          flags & ~WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB);
+                 break;
+ 
++            case WGL_CONTEXT_OPENGL_NO_ERROR_ARB:
++                /* win32u lists WGL_ARB_create_context_no_error. The attribute
++                 * only allows the driver to skip error checks, so a context
++                 * with error checks still meets the request. */
++                if (value) WARN("WGL_CONTEXT_OPENGL_NO_ERROR_ARB %#x ignored\n", value);
++                break;
++
+             case WGL_CONTEXT_PROFILE_MASK_ARB:
+                 if (value != WGL_CONTEXT_CORE_PROFILE_BIT_ARB &&
+                     value != WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB)

@@ -112,6 +112,8 @@ final class GameCompatTests: XCTestCase {
     func testDirtGetsTheDepthBoundsBehavior() {
         XCTAssertEqual(GameCompat.environment(for: "9pjgm0t0827v")["D3DM_EXE_OVERRIDE"], "GoWR.exe")
         XCTAssertEqual(GameCompat.environment(for: "9PCR3Z2MSM4T"), [:], "Other games get nothing")
+        XCTAssertEqual(GameCompat.environment(for: "9pc288tn7r8k")["CX_FWD_COMPAT_GL_CTX"], "1",
+                       "Grim Fandango Remastered gets a forward-compatible OpenGL context")
         for edition in ["9NR1R1XWLCNB", "9n431px143p8", "9N4XW3N02MNJ"] {
             XCTAssertEqual(GameCompat.environment(for: edition)["D3DM_VENDOR_ID"], "0x8086", "Forza Horizon 6 reports an Intel GPU")
         }

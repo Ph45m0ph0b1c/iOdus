@@ -88,8 +88,28 @@ struct RuntimeDownloadState: Equatable {
 extension AppModel {
     var defaultRuntime: GameRuntime { runtimeChoice.defaultRuntime(in: runtimes) }
 
+    /// The player's choice for the game, else the runtime that the game needs
+    /// (GameCompat) when it is installed, else the default.
     func runtime(for game: Game) -> GameRuntime {
-        runtimeChoice.runtime(for: game.id, in: runtimes)
+        if runtimeChoice.gameID(game.id) == nil, let required = GameCompat.requiredRuntime(for: game.id),
+           let runtime = runtimes.first(where: { $0.id == required }) {
+            return runtime
+        }
+        return runtimeChoice.runtime(for: game.id, in: runtimes)
+    }
+
+    /// The note on the game page for a game that runs only with one runtime, or nil.
+    func runtimeNote(for game: Game) -> String? {
+        guard let required = GameCompat.requiredRuntime(for: game.id) else { return nil }
+        let name = "the D3DMetal 4 beta runtime"
+        if runtime(for: game).id == required { return nil }
+        if runtimes.contains(where: { $0.id == required }) {
+            return "\(game.title) runs only with \(name). Choose it in Game settings > Runtime."
+        }
+        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 27 {
+            return "\(game.title) runs only with \(name), which needs macOS 27 or later."
+        }
+        return "\(game.title) runs only with \(name). Download it in Settings > Runtimes > Game runtime."
     }
 
     /// The prefix with the saves of a game (tests can override all prefixes).
@@ -257,21 +277,43 @@ extension AppModel {
     func fetchRuntime(_ download: RuntimeDownload,
                       progress: @escaping @MainActor (Int64, Int64) -> Void,
                       installing: @escaping @MainActor () -> Void) async throws {
-        guard gptkHasD3DMetal else { throw RuntimeInstallError.noGPTK }
+        // A beta runtime brings its own D3DMetal; the others copy it from GPTK.
+        if download.d3dmetal == nil { guard gptkHasD3DMetal else { throw RuntimeInstallError.noGPTK } }
         if let free = Bytes.freeSpace(at: GameRuntime.support), free < download.neededBytes {
             throw RuntimeSetupError.notEnoughSpace(needed: download.neededBytes, free: free)
         }
-        let archive = FileManager.default.temporaryDirectory.appendingPathComponent("iodus-\(download.id)-\(download.release).tar.xz")
-        defer { try? FileManager.default.removeItem(at: archive) }
-        try await RuntimeSetup.download(url: download.url, size: download.size, to: archive) { done, total in
+        let shim = GameRuntime.standard.componentFolder.appendingPathComponent("compat/highball-d3d12-shim.dll")
+        if download.d3dmetal != nil, !FileManager.default.fileExists(atPath: shim.path) {
+            throw RuntimeInstallError.badPackage("This build of iOdus has no d3d12 layer for D3DMetal 4.")
+        }
+        let temp = FileManager.default.temporaryDirectory
+        let archive = temp.appendingPathComponent("iodus-\(download.id)-\(download.release).tar.xz")
+        let d3dmetalArchive = download.d3dmetal.map { temp.appendingPathComponent("iodus-d3dmetal-\($0.version).tar.xz") }
+        defer {
+            try? FileManager.default.removeItem(at: archive)
+            if let d3dmetalArchive { try? FileManager.default.removeItem(at: d3dmetalArchive) }
+        }
+        let extra = download.d3dmetal?.size ?? 0
+        let total = download.size + extra
+        try await RuntimeSetup.download(url: download.url, size: download.size, to: archive) { done, _ in
             Task { @MainActor in progress(done, total) }
+        }
+        if let package = download.d3dmetal, let d3dmetalArchive {
+            try Task.checkCancellation()
+            try await RuntimeSetup.download(url: package.url, size: package.size, to: d3dmetalArchive) { done, _ in
+                Task { @MainActor in progress(download.size + done, total) }
+            }
         }
         try Task.checkCancellation()
         installing()
         let runtimesFolder = RuntimeCatalog.runtimesFolder
         try await Task.detached {
             try RuntimeSetup.verify(archive, sha256: download.sha256)
-            try RuntimeInstaller.install(archive: archive, download: download, runtimes: runtimesFolder)
+            if let package = download.d3dmetal, let d3dmetalArchive {
+                try RuntimeSetup.verify(d3dmetalArchive, sha256: package.sha256)
+            }
+            try RuntimeInstaller.install(archive: archive, download: download, runtimes: runtimesFolder,
+                                         d3dmetalArchive: d3dmetalArchive, shim: shim)
         }.value
         reloadRuntimes()
     }

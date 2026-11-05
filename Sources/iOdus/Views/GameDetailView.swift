@@ -51,6 +51,12 @@ struct GameDetailView: View {
                         .foregroundStyle(Theme.textSecondary)
                         .padding(.top, 8 * s)
                 }
+                if let note = model.runtimeNote(for: game) {
+                    Label(note, systemImage: "exclamationmark.triangle")
+                        .font(.system(size: 17 * s))
+                        .foregroundStyle(Theme.textSecondary)
+                        .padding(.top, 8 * s)
+                }
                 if game.installState == .installed && model.isUnityGame(game) {
                     Label("Use Borderless in the game settings. Exclusive full screen is not stable with D3DMetal.",
                           systemImage: "info.circle")

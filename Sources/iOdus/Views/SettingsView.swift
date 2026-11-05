@@ -157,7 +157,13 @@ struct SettingsView: View {
         case .updates:
             return ("clock.arrow.circlepath", "Check for updates automatically", ["Once a day."], nil)
         case .runtime:
-            return ("cpu", "Game runtime", model.runtimeStatus, "Prepare again")
+            // A opens the runtimes page: the installed runtimes, downloads, and updates.
+            var lines = model.runtimeStatus
+            let available = model.availableDownloads.map { download in
+                model.runtimes.contains { $0.id == download.id } ? "\(download.name) (update)" : download.name
+            }
+            if !available.isEmpty { lines.append("Available: " + available.joined(separator: ", ")) }
+            return ("cpu", "Game runtime", lines, "Manage")
         case .vcRuntime:
             let installed = model.vcRuntimeInstalled
             return ("shippingbox", "Microsoft Visual C++ runtime", [model.vcRuntimeStatus],

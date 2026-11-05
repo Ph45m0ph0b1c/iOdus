@@ -31,6 +31,7 @@ done
 for dll in $DLLS; do
   [ -f "$COMPONENTS/$dll" ] || { echo "Missing runtime DLL: $COMPONENTS/$dll" >&2; exit 1; }
 done
+[ -f "$COMPONENTS/highball-d3d12-shim.dll" ] || { echo "Missing: $COMPONENTS/highball-d3d12-shim.dll (scripts/build-runtime.sh)" >&2; exit 1; }
 [ -f "$COMPONENTS/compat/PlayFabGameSave.dll" ] || { echo "Missing: $COMPONENTS/compat/PlayFabGameSave.dll (scripts/build-runtime.sh)" >&2; exit 1; }
 
 echo "== Build iOdus (release)"
@@ -51,6 +52,8 @@ cp "$ROOT/scripts/runtime-compat/iodus-wine-launch" "$APP/Contents/Resources/run
 chmod 755 "$APP/Contents/Resources/runtime/iodus-wine-launch"
 mkdir -p "$APP/Contents/Resources/runtime/compat"
 cp "$COMPONENTS/compat/PlayFabGameSave.dll" "$APP/Contents/Resources/runtime/compat/"
+# The d3d12.dll layer for the D3DMetal 4 beta runtime (RuntimeInstaller.addD3DMetal4).
+cp "$COMPONENTS/highball-d3d12-shim.dll" "$APP/Contents/Resources/runtime/compat/"
 
 # Licenses and sources. iOdus is GPL-3.0; xodus-cli is GPL-3.0 (Xodus); the
 # Xbox runtime DLLs are Wine code under the LGPL 2.1 or later. Both licenses

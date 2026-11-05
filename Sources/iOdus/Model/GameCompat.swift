@@ -28,6 +28,21 @@ enum GameCompat {
         "D3DM_DEVICE_DESCRIPTION": "Intel(R) Arc(TM) A750 Graphics",
     ]
 
+    /// Games that run only with one runtime. Such a game uses that runtime when it
+    /// is installed and the player did not choose a runtime for the game.
+    static let requiredRuntime: [String: String] = [
+        // Forza Horizon 6 needs DirectX 12 enhanced barriers: D3DMetal 4 only.
+        "9NR1R1XWLCNB": d3dmetal4Runtime,
+        "9N431PX143P8": d3dmetal4Runtime,
+        "9N4XW3N02MNJ": d3dmetal4Runtime,
+    ]
+
+    static let d3dmetal4Runtime = RuntimeDownload.crossoverD3DMetal4.id
+
+    static func requiredRuntime(for productId: String) -> String? {
+        requiredRuntime[productId.uppercased()]
+    }
+
     static func environment(for productId: String) -> [String: String] {
         environment[productId.uppercased()] ?? [:]
     }

@@ -162,13 +162,15 @@ because two Wine versions must not share one.
 |---|---|---|
 | Game Porting Toolkit 3.0 (default) | 7.7 | The Gcenx build of Apple's toolkit, downloaded in the setup |
 | CrossOver 26.3 Wine | 11.0 | Built by `scripts/build-wine-runtime.sh` from the CrossOver 26.3 source; Settings > Game runtimes offers the download |
+| CrossOver 26.3 Wine + D3DMetal 4 (beta) | 11.0 | The same Wine, with D3DMetal 4 from Game Porting Toolkit 4; macOS 27 or later; Settings > Game runtimes offers the download |
 
 - **Settings > Game runtime:** A sets the default runtime. X prepares the prefix
   of a runtime again. A runtime that is not installed shows **Download**.
 - **Game page > Runtime:** sets the runtime of one game. iOdus does not allow the
   change while a save of the game is not uploaded, or while it has a save conflict.
 - **D3DMetal** is Apple's binary, and the runtime package does not contain it.
-  iOdus copies it from the Game Porting Toolkit that you installed.
+  iOdus copies D3DMetal 3 from the Game Porting Toolkit that you installed. The
+  beta runtime downloads D3DMetal 4 as a separate package (see below).
 - **Visual C++ runtime:** Settings > Microsoft Visual C++ runtime installs
   Microsoft's runtime into all runtime prefixes. A new prefix gets it at its setup.
 - **Compatibility parts for Wine 7.7** (in `scripts/runtime-compat/`):
@@ -182,17 +184,19 @@ because two Wine versions must not share one.
 
 Forza Horizon 6 needs DirectX 12 enhanced barriers, which only D3DMetal 4 has.
 D3DMetal 4 is part of Apple's Game Porting Toolkit 4 beta and runs only on
-macOS 27. For now it is a local runtime, made by a script (an in-app import is
-planned, issue #1):
+macOS 27.
 
-1. Download "Game Porting Toolkit 4.0 beta 3" from
-   [Apple](https://developer.apple.com/download/all/?q=game%20porting%20toolkit).
-   Open the disk image, then the "Evaluation environment for Windows games"
-   disk image inside it, and copy its `redist` folder.
-2. Build the Wine 11 runtime (`scripts/build-wine-runtime.sh`, `STAGE=assemble`).
-3. Run `scripts/make-d3dmetal4-runtime.sh <runtime folder> <redist folder>
-   ~/Library/Application\ Support/iOdus/Runtimes/crossover-26.3-d3dm4`.
-4. In the game's settings, choose the runtime "CrossOver 26.3 Wine + D3DMetal 4".
+- **Install:** Settings > Runtimes > Game runtime > "CrossOver 26.3 Wine +
+  D3DMetal 4 (beta)". iOdus downloads the Wine package and the D3DMetal package
+  from the iOdus release, checks both SHA-256 values and Apple's signature, and
+  installs the runtime. The Forza Horizon 6 game page says when the runtime is
+  missing, and the game uses the beta runtime when it is installed.
+- **The D3DMetal package** (`d3dmetal-4.0b3.tar.xz`) is the `redist` folder of
+  Apple's toolkit, unchanged, with Apple's license, acknowledgements, and
+  read-me files. `scripts/package-d3dmetal.sh` makes it. Apple's license allows
+  its free, non-commercial distribution (sections 2A(iii) and 2C).
+- **For development:** `scripts/make-d3dmetal4-runtime.sh` makes the same
+  runtime from a local Wine build and a local `redist` folder.
 
 The D3DMetal 4 runtime also has a `d3d12.dll` layer from Highball in front of
 D3DMetal (`scripts/runtime-compat/highball-d3d12-shim.c`). For Forza Horizon 6,
@@ -363,7 +367,11 @@ server or injected answers.
   requires that they can get the source of that backend.
 - **Game Porting Toolkit and D3DMetal:** Apple's software, under Apple's license.
   iOdus downloads the [Gcenx build](https://github.com/Gcenx/game-porting-toolkit)
-  after you accept the license, and does not ship D3DMetal.
+  after you accept the license. The app does not contain D3DMetal. For the
+  D3DMetal 4 beta runtime, an iOdus release has Apple's D3DMetal 4 files,
+  unchanged, free of charge and for non-commercial use only, under Apple's
+  license (sections 2A(iii) and 2C), with Apple's license file. They are not
+  under the iOdus license.
 - **Wine 11 runtime:** Wine and the CodeWeavers changes (LGPL 2.1 or later),
   GnuTLS (LGPL 2.1 or later), Nettle and GMP (LGPL 3 or GPL 2), FreeType
   (FreeType License or GPL 2), and SDL2 (zlib License). The runtime package has the license texts and a

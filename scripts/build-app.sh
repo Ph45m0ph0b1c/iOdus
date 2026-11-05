@@ -31,6 +31,7 @@ done
 for dll in $DLLS; do
   [ -f "$COMPONENTS/$dll" ] || { echo "Missing runtime DLL: $COMPONENTS/$dll" >&2; exit 1; }
 done
+[ -f "$COMPONENTS/compat/PlayFabGameSave.dll" ] || { echo "Missing: $COMPONENTS/compat/PlayFabGameSave.dll (scripts/build-runtime.sh)" >&2; exit 1; }
 
 echo "== Build iOdus (release)"
 swift build -c release --package-path "$ROOT"
@@ -44,6 +45,12 @@ cp "$BACKEND" "$APP/Contents/MacOS/xodus-cli"
 cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp "$LOCK" "$APP/Contents/Resources/backend-source.lock.json"
 for dll in $DLLS; do cp "$COMPONENTS/$dll" "$APP/Contents/Resources/runtime/"; done
+# The Wine start script, and the PlayFab save proxy that it puts in front of a
+# game's PlayFabGameSave.dll (never copied into a prefix).
+cp "$ROOT/scripts/runtime-compat/iodus-wine-launch" "$APP/Contents/Resources/runtime/"
+chmod 755 "$APP/Contents/Resources/runtime/iodus-wine-launch"
+mkdir -p "$APP/Contents/Resources/runtime/compat"
+cp "$COMPONENTS/compat/PlayFabGameSave.dll" "$APP/Contents/Resources/runtime/compat/"
 
 # Licenses and sources. iOdus is GPL-3.0; xodus-cli is GPL-3.0 (Xodus); the
 # Xbox runtime DLLs are Wine code under the LGPL 2.1 or later. Both licenses

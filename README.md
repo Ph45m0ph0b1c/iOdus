@@ -178,6 +178,37 @@ because two Wine versions must not share one.
   - a forwarder for the app notification API set
 - The plan and the build notes are in [`docs/runtime-versions-plan.md`](docs/runtime-versions-plan.md).
 
+### D3DMetal 4 and Forza Horizon 6
+
+Forza Horizon 6 needs DirectX 12 enhanced barriers, which only D3DMetal 4 has.
+D3DMetal 4 is part of Apple's Game Porting Toolkit 4 beta and runs only on
+macOS 27. For now it is a local runtime, made by a script (an in-app import is
+planned, issue #1):
+
+1. Download "Game Porting Toolkit 4.0 beta 3" from
+   [Apple](https://developer.apple.com/download/all/?q=game%20porting%20toolkit).
+   Open the disk image, then the "Evaluation environment for Windows games"
+   disk image inside it, and copy its `redist` folder.
+2. Build the Wine 11 runtime (`scripts/build-wine-runtime.sh`, `STAGE=assemble`).
+3. Run `scripts/make-d3dmetal4-runtime.sh <runtime folder> <redist folder>
+   ~/Library/Application\ Support/iOdus/Runtimes/crossover-26.3-d3dm4`.
+4. In the game's settings, choose the runtime "CrossOver 26.3 Wine + D3DMetal 4".
+
+The D3DMetal 4 runtime also has a `d3d12.dll` layer from Highball in front of
+D3DMetal (`scripts/runtime-compat/highball-d3d12-shim.c`). For Forza Horizon 6,
+iOdus also:
+
+- reports an Intel GPU to D3DMetal (`GameCompat.swift`);
+- writes a Gaming Services version (38.117.27001.0) into the registry of each
+  prefix, because the game checks it;
+- puts the PlayFab save proxy from Xodus Nexus in front of the game's
+  `PlayFabGameSave.dll` in the temporary launch folder
+  (`scripts/runtime-compat/iodus-wine-launch`); without it, the game stops with
+  E:0-17-4.
+
+Reported by other projects: short freezes about every 1.3 seconds during play,
+caused by the game's copy protection under Rosetta.
+
 ## Saves
 
 The Xbox runtime keeps the cloud saves of a game in the prefix of its runtime:

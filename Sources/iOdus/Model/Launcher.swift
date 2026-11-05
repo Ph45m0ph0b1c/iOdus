@@ -109,6 +109,8 @@ final class GameLauncher {
             }
             // The game's Retina choice. A change restarts the Wine processes of the prefix.
             try await runtime.applyRetinaMode(options.retina)
+            // Some games check the Gaming Services version in the registry.
+            try? await runtime.applyGamingServicesVersion()
             state = .preparing(id: id, step: "Starting the Xbox services")
             let bridge = try await ensureService(cli)
             if stopRequested { return finish(id, nil) }
@@ -242,17 +244,34 @@ final class GameLauncher {
         fm.createFile(atPath: log.path, contents: nil)
         let handle = try FileHandle(forWritingTo: log)
 
+        // Wine starts through iodus-wine-launch when the app has it (see the script).
+        let launcher = runtime.componentFolder.appendingPathComponent("iodus-wine-launch")
+        let useLauncher = fm.isExecutableFile(atPath: launcher.path)
         let process = Process()
         process.executableURL = cli.url
-        process.arguments = ["run", folder.path, runtime.wine64.path, "--exe", exe,
+        process.arguments = ["run", folder.path, useLauncher ? launcher.path : runtime.wine64.path, "--exe", exe,
                              "--materialize-chain", "--market", market]
             + (gameArguments.isEmpty ? [] : ["--"] + gameArguments)
         var extra = bridge.environment
         // The player's choice in a save conflict: this start downloads or uploads all saves.
         if let saveSync { extra["XODUS_SAVE_SYNC"] = saveSync.rawValue }
         extra.merge(GameCompat.environment(for: id)) { _, new in new }
+        if useLauncher {
+            extra["IODUS_REAL_WINE"] = runtime.wine64.path
+            // The PlayFab save proxy, for the games that need it (GameCompat).
+            let proxy = runtime.componentFolder.appendingPathComponent("compat/PlayFabGameSave.dll")
+            if extra["IODUS_PLAYFAB_ADAPTER"] == "1", fm.fileExists(atPath: proxy.path) {
+                extra["IODUS_PLAYFAB_PROXY"] = proxy.path
+            }
+        }
         extra.merge(overlayMode.gameEnvironment) { _, new in new }
-        process.environment = runtime.environment(extra: extra)
+        var environment = runtime.environment(extra: extra)
+        // macOS removes DYLD_* variables when it starts /bin/sh (a protected
+        // program), so iodus-wine-launch gets this copy and restores it for Wine.
+        if useLauncher, let dyld = environment["DYLD_FALLBACK_LIBRARY_PATH"] {
+            environment["IODUS_DYLD_FALLBACK_LIBRARY_PATH"] = dyld
+        }
+        process.environment = environment
         process.standardOutput = handle
         process.standardError = handle
         process.standardInput = FileHandle.nullDevice

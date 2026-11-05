@@ -1,0 +1,52 @@
+--- a/dlls/ntdll/unix/loader.c	2026-11-04 18:41:34
++++ b/dlls/ntdll/unix/loader.c	2026-11-04 18:41:34
+@@ -1641,6 +1641,39 @@
+  * Load the builtin dll if specified by load order configuration.
+  * Return STATUS_IMAGE_ALREADY_LOADED if we should keep the native one that we have found.
+  */
++/* iOdus: TRUE when the file name of nt_name is in WINE_BUILTIN_BY_FILE_NAME
++ * (comma-separated, compared without case). Such a builtin is found by its
++ * file name instead of its export name: a renamed copy of a builtin (D3DMetal's
++ * d3d12.dll as d3d12_d3dmetal.dll) can then load next to a layer that has the
++ * file name d3d12.dll, without a change to the copy. */
++static BOOL builtin_by_file_name( const UNICODE_STRING *nt_name )
++{
++    const char *list = getenv( "WINE_BUILTIN_BY_FILE_NAME" ), *p;
++    unsigned int i, len = nt_name->Length / sizeof(WCHAR), start = 0, n;
++
++    if (!list || !*list) return FALSE;
++    for (i = 0; i < len; i++)
++        if (nt_name->Buffer[i] == '/' || nt_name->Buffer[i] == '\\') start = i + 1;
++    n = len - start;
++    for (p = list; *p; )
++    {
++        const char *end = strchr( p, ',' );
++        unsigned int item = end ? end - p : strlen( p );
++        if (item == n)
++        {
++            for (i = 0; i < n; i++)
++            {
++                WCHAR c = nt_name->Buffer[start + i];
++                if (c > 127 || tolower( (char)c ) != tolower( p[i] )) break;
++            }
++            if (i == n) return TRUE;
++        }
++        if (!end) break;
++        p = end + 1;
++    }
++    return FALSE;
++}
++
+ NTSTATUS load_builtin( const struct pe_image_info *image_info, UNICODE_STRING *nt_name,
+                        ANSI_STRING *exp_name, USHORT machine, SECTION_IMAGE_INFORMATION *info,
+                        void **module, SIZE_T *size, ULONG_PTR limit_low, ULONG_PTR limit_high,
+@@ -1667,6 +1700,9 @@
+     if (is_arm64ec() && image_info->is_hybrid && search_machine == IMAGE_FILE_MACHINE_AMD64)
+         search_machine = current_machine;
+ 
++    if (image_info->wine_builtin && exp_name && exp_name->Length && builtin_by_file_name( nt_name ))
++        exp_name = NULL;
++
+     switch (loadorder)
+     {
+     case LO_NATIVE:

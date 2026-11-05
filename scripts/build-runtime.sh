@@ -136,7 +136,17 @@ configure_and_build() {
   # request and closes the request without it (Xbox Live calls of the game fail).
   # The prefix needs the DLL override winhttp=native,builtin.
   x86_64-w64-mingw32-gcc -shared -O2 -Wall -o "$OUT/winhttp.dll" "$COMPAT/winhttp-proxy.c" "$COMPAT/winhttp-proxy.def"
-  for f in "$OUT"/*.dll; do
+  # The d3d12.dll layer for D3DMetal 4 (Highball, GPL-3.0), for
+  # make-d3dmetal4-runtime.sh. Wine loads it as a builtin, so it gets the marker.
+  x86_64-w64-mingw32-gcc -shared -O2 -Wall -static-libgcc -o "$OUT/highball-d3d12-shim.dll" \
+    "$COMPAT/highball-d3d12-shim.c" "$COMPAT/highball-d3d12-shim.def"
+  $X86 "$BUILD/tools/winebuild/winebuild" --builtin "$OUT/highball-d3d12-shim.dll"
+  # The PlayFab save proxy (Xodus Nexus, MIT). iodus-wine-launch puts it in front
+  # of a game's PlayFabGameSave.dll; it is never copied into a prefix.
+  mkdir -p "$OUT/compat"
+  x86_64-w64-mingw32-gcc -shared -O2 -Wall -Wextra -Wl,--no-insert-timestamp -o "$OUT/compat/PlayFabGameSave.dll" \
+    "$COMPAT/nexus-playfab-save-folder.c" "$COMPAT/nexus-playfab-session.c" "$COMPAT/nexus-playfab-save-folder.def"
+  for f in "$OUT"/*.dll "$OUT"/compat/*.dll; do
     file -b "$f" | grep -q "PE32+ executable.*x86-64" || { echo "Not a 64-bit Windows DLL: $f" >&2; exit 1; }
   done
   echo "== Done"

@@ -320,6 +320,38 @@ struct GameRuntime: Sendable, Equatable {
         await killWineserver()
         try (on ? "y" : "n").write(to: retinaMarker, atomically: true, encoding: .utf8)
     }
+
+    // MARK: Gaming Services version
+
+    /// The Gaming Services version that iOdus reports: 38.117.27001.0. Games such
+    /// as Forza Horizon 6 read it from the registry and stop with "Invalid Gaming
+    /// Services Detected" when it is missing or old. This is only a version
+    /// number in the prefix, not an installed Microsoft service. Xodus Nexus
+    /// found the key and the value (xodus-nexus PR #15,
+    /// scripts/runtime-compat/gaming-services-version.c, MIT).
+    static let gamingServicesVersion = "38.117.27001.0"
+    static let gamingServicesKey = #"HKLM\SOFTWARE\Microsoft\GamingServices"#
+
+    /// The version as the registry keeps it: a QWORD with 16 bits for each part.
+    static func packedVersion(_ text: String) -> UInt64? {
+        let parts = text.split(separator: ".").compactMap { UInt64($0) }
+        guard parts.count == 4, parts.allSatisfy({ $0 <= 0xFFFF }) else { return nil }
+        return parts.reduce(0) { ($0 << 16) | $1 }
+    }
+
+    var gamingServicesMarker: URL { prefix.appendingPathComponent(".iodus-gaming-services") }
+
+    /// Writes CurrentVersion and AvailableVersion once for each prefix and version.
+    func applyGamingServicesVersion() async throws {
+        let marker = try? String(contentsOf: gamingServicesMarker, encoding: .utf8)
+        guard marker != Self.gamingServicesVersion,
+              let value = Self.packedVersion(Self.gamingServicesVersion) else { return }
+        for name in ["CurrentVersion", "AvailableVersion"] {
+            try await wine(["reg", "add", Self.gamingServicesKey, "/v", name, "/t", "REG_QWORD",
+                            "/d", String(value), "/f"])
+        }
+        try Self.gamingServicesVersion.write(to: gamingServicesMarker, atomically: true, encoding: .utf8)
+    }
 }
 
 /// Unity games. D3DMetal crashes on a focus change (Cmd+Tab) when a game uses

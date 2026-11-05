@@ -1,0 +1,28 @@
+xgameruntime: report a file version, as the Gaming Services copy does.
+
+The xgameruntime.dll that Gaming Services installs has a version resource
+(10.0.18363.x on Gaming Services 1.3x, 10.0.26100.x on newer builds). The
+Wine-built DLL had none, so GetFileVersionInfoSize failed on it. Forza
+Horizon 6 reads the versions of its loaded modules. (Its "Invalid Gaming
+Services Detected" message comes from the registry version instead; iOdus
+writes that at the game start, see GameRuntime.applyGamingServicesVersion.)
+
+--- a/dlls/xgameruntime/Makefile.in
++++ b/dlls/xgameruntime/Makefile.in
+@@ -6,6 +6,7 @@ SOURCES = \
+ 	main.c \
+ 	userprovider.idl \
+ 	util.c \
++	version.rc \
+ 	xaccessibility.c \
+ 	xaccessibility.idl \
+ 	xappcapture.c \
+--- /dev/null
++++ b/dlls/xgameruntime/version.rc
+@@ -0,0 +1,6 @@
++#define WINE_FILEDESCRIPTION_STR "Microsoft Gaming Runtime"
++#define WINE_FILENAME_STR "xgameruntime.dll"
++#define WINE_FILEVERSION 10,0,26100,8568
++#define WINE_PRODUCTVERSION 10,0,26100,8568
++
++#include "wine/wine_common_ver.rc"

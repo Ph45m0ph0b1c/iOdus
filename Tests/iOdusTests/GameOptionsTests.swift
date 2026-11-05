@@ -112,6 +112,9 @@ final class GameCompatTests: XCTestCase {
     func testDirtGetsTheDepthBoundsBehavior() {
         XCTAssertEqual(GameCompat.environment(for: "9pjgm0t0827v")["D3DM_EXE_OVERRIDE"], "GoWR.exe")
         XCTAssertEqual(GameCompat.environment(for: "9PCR3Z2MSM4T"), [:], "Other games get nothing")
+        for edition in ["9NR1R1XWLCNB", "9n431px143p8", "9N4XW3N02MNJ"] {
+            XCTAssertEqual(GameCompat.environment(for: edition)["D3DM_VENDOR_ID"], "0x8086", "Forza Horizon 6 reports an Intel GPU")
+        }
     }
 }
 
@@ -131,5 +134,15 @@ final class LauncherReserveTests: XCTestCase {
         XCTAssertEqual(finished, ["A"])
         XCTAssertEqual(launcher.state, .idle)
         XCTAssertTrue(launcher.reserve(id: "A", title: "Game A"), "After the end, the game can start again")
+    }
+}
+
+final class GamingServicesVersionTests: XCTestCase {
+    func testTheVersionIsPackedAsTheRegistryKeepsIt() {
+        // 38.117.27001.0: the value that Xodus Nexus writes (0x0026007569790000).
+        XCTAssertEqual(GameRuntime.packedVersion(GameRuntime.gamingServicesVersion), 0x0026_0075_6979_0000)
+        XCTAssertEqual(GameRuntime.packedVersion("1.2.3.4"), 0x0001_0002_0003_0004)
+        XCTAssertNil(GameRuntime.packedVersion("1.2.3"), "Four parts")
+        XCTAssertNil(GameRuntime.packedVersion("1.2.3.70000"), "Each part fits in 16 bits")
     }
 }

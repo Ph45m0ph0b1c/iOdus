@@ -263,7 +263,9 @@ struct RootContent: View {
     private var hints: [ButtonHint] {
         switch model.account {
         case .signedOut: return [.init(.a, "Sign in")]
-        case .failed: return [.init(.a, "Try again")]
+        case .failed:
+            if model.accountNeedsSignIn { return [.init(.a, "Sign in again"), .init(.x, "Try again")] }
+            return [.init(.a, "Try again")]
         case .ready: break
         default: return []
         }
@@ -438,14 +440,25 @@ struct AccountView: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 48 * s))
                         .foregroundStyle(Theme.buttonY)
-                    Text("Something went wrong")
+                    Text(model.accountNeedsSignIn ? "Sign in again" : "Something went wrong")
                         .font(.system(size: 36 * s, weight: .semibold))
+                    if model.accountNeedsSignIn {
+                        Text("Microsoft no longer accepts the stored Xbox sign-in. It can come from an earlier sign-in, or from another app that uses the Xodus backend. Sign in again to continue; your installed games stay.")
+                            .font(.system(size: 20 * s))
+                            .foregroundStyle(Theme.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 900 * s)
+                    }
                     Text(message)
-                        .font(.system(size: 20 * s))
+                        .font(.system(size: (model.accountNeedsSignIn ? 16 : 20) * s))
                         .foregroundStyle(Theme.textSecondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 900 * s)
-                    actionButton("Try again", symbol: "arrow.clockwise", s)
+                    if model.accountNeedsSignIn {
+                        actionButton("Sign in again", symbol: "person.crop.circle", s)
+                    } else {
+                        actionButton("Try again", symbol: "arrow.clockwise", s)
+                    }
                 case .ready:
                     EmptyView()
                 }

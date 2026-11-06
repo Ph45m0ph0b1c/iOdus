@@ -254,6 +254,7 @@ final class AppModel: ObservableObject {
     }
 
     private var unityCache: [String: Bool] = [:]
+    private var stubCache: [String: GameStub?] = [:]
 
     /// Installed Unity games get a hint about the full-screen mode on their page.
     /// The cloud save state of a game; nil without a title ID.
@@ -267,6 +268,15 @@ final class AppModel: ObservableObject {
         }
         guard let titleId = game.titleId else { return nil }
         return CloudSaveStatus.read(titleId: titleId, prefix: savePrefix(for: game))
+    }
+
+    /// The stub of a launcher game (GameStub), for an installed game, or nil.
+    func gameStub(_ game: Game) -> GameStub? {
+        guard let path = downloads.installs[game.id]?.path else { return nil }
+        if let known = stubCache[path] { return known }
+        let stub = GameStub.detect(in: URL(fileURLWithPath: path))
+        stubCache[path] = .some(stub)
+        return stub
     }
 
     func isUnityGame(_ game: Game) -> Bool {
@@ -508,6 +518,28 @@ final class AppModel: ObservableObject {
         await start()
     }
 
+    /// True when the failure is a stored sign-in that Microsoft refuses, for
+    /// example an old sign-in of another Xodus-based app (issue #5). Then only
+    /// a new sign-in helps, and "Try again" repeats the same failure.
+    var accountNeedsSignIn: Bool {
+        guard case .failed(let message) = account else { return false }
+        return Self.isSignInFailure(message)
+    }
+
+    static func isSignInFailure(_ message: String) -> Bool {
+        message.contains("ticket-interaction-required") || message.contains("ticket-refused")
+    }
+
+    /// Removes the refused sign-in (the device registration stays) and opens
+    /// the Microsoft sign-in window.
+    func signInAgain() async {
+        guard let cli else { return }
+        try? await cli.logoutAccount()
+        accountName = ""
+        account = .signedOut
+        await signIn()
+    }
+
     private func loadAccount() async {
         guard let cli else { return }
         account = .loading
@@ -716,6 +748,11 @@ final class AppModel: ObservableObject {
             return
         }
         guard let path = downloads.installs[game.id]?.path else { return }
+        // A starter for another launcher (STEEP: Ubisoft Connect) cannot run here.
+        if let stub = gameStub(game) {
+            showToast(stub.note(for: game.title), seconds: 7)
+            return
+        }
         if !GPTKRelease.pinned.isInstalled(in: setupRoot) || RosettaStatus.detect() == .missing, openSetup() {
             return
         }
@@ -948,7 +985,9 @@ final class AppModel: ObservableObject {
         }
         switch account {
         case .signedOut: Task { await signIn() }; return
-        case .failed: Task { await retry() }; return
+        case .failed:
+            Task { if accountNeedsSignIn { await signInAgain() } else { await retry() } }
+            return
         case .ready: break
         default: return
         }
@@ -1151,6 +1190,11 @@ final class AppModel: ObservableObject {
         guard stream == nil else { return }
         if statusPanel == .notifications {
             clearNotifications()
+            return
+        }
+        // A sign-in failure: A signs in again, X only tries again.
+        if accountNeedsSignIn {
+            Task { await retry() }
             return
         }
         guard account == .ready, setup == nil, installPrompt == nil, statusPanel == nil else { return }

@@ -235,6 +235,13 @@ extension XodusCLI {
         guard result.status == 0 else { throw BackendError.failed(Self.message(from: result.stderr)) }
     }
 
+    /// Removes only the account credentials; the device registration stays.
+    /// For a sign-in that Microsoft refuses (see AppModel.signInAgain).
+    func logoutAccount() async throws {
+        let result = try await run(["logout"], timeout: 30)
+        guard result.status == 0 else { throw BackendError.failed(Self.message(from: result.stderr)) }
+    }
+
     /// Removes the account and the device credentials. A new sign-in then makes
     /// all Keychain items again, owned by the current (signed) xodus-cli.
     func logout() async throws {

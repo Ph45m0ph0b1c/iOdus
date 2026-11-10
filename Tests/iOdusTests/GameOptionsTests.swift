@@ -117,6 +117,9 @@ final class GameCompatTests: XCTestCase {
         for edition in ["9NR1R1XWLCNB", "9n431px143p8", "9N4XW3N02MNJ"] {
             XCTAssertEqual(GameCompat.environment(for: edition)["D3DM_VENDOR_ID"], "0x8086", "Forza Horizon 6 reports an Intel GPU")
         }
+        for edition in ["9N98Z825TNFW", "9n98z825tnfw", "9MV69L4JSD31"] {
+            XCTAssertEqual(GameCompat.requiredRuntime(for: edition), GameCompat.d3dmetal4Runtime, "Minecraft Legends requires D3DMetal 4")
+        }
     }
 }
 

@@ -40,6 +40,9 @@ enum GameCompat {
         "9NR1R1XWLCNB": d3dmetal4Runtime,
         "9N431PX143P8": d3dmetal4Runtime,
         "9N4XW3N02MNJ": d3dmetal4Runtime,
+        // Minecraft Legends: D3D12 GDK title requires D3DMetal 4 runtime.
+        "9N98Z825TNFW": d3dmetal4Runtime,
+        "9MV69L4JSD31": d3dmetal4Runtime,
     ]
 
     static let d3dmetal4Runtime = RuntimeDownload.crossoverD3DMetal4.id

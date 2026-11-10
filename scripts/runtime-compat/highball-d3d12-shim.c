@@ -93,7 +93,7 @@ FORWARD(D3D12CoreRegisterLayers)
 FORWARD(D3D12CreateRootSignatureDeserializer)
 FORWARD(D3D12CreateVersionedRootSignatureDeserializer)
 FORWARD(D3D12EnableExperimentalFeatures)
-FORWARD(D3D12GetDebugInterface)
+static void *p_D3D12GetDebugInterface;
 FORWARD(D3D12SerializeRootSignature)
 FORWARD(D3D12SerializeVersionedRootSignature)
 FORWARD(GetBehaviorValue)
@@ -754,6 +754,27 @@ HRESULT WINAPI D3D12GetInterface(REFCLSID clsid, REFIID riid, void **out)
         }
     }
     if (dbg) LOG("D3D12GetInterface hr=0x%08lx", (unsigned long)hr);
+    return hr;
+}
+
+// D3D12GetDebugInterface: D3DMetal has no debug layer implementation. When returning
+// failure (or E_NOINTERFACE), D3DMetal neglects to set *out = NULL, violating COM
+// conventions. Games using ComPtr<ID3D12Debug> without prior zero-initialization then
+// attempt to call Release() on whatever uninitialized stack garbage was in that local
+// slot, triggering an immediate page fault. We ensure *out is always NULL on failure.
+HRESULT WINAPI D3D12GetDebugInterface(REFIID riid, void **out)
+{
+    typedef HRESULT (WINAPI *PFN)(REFIID, void **);
+    PFN fn = (PFN)p_D3D12GetDebugInterface;
+    HRESULT hr;
+    if (out) *out = NULL;
+    if (!fn) {
+        LOG("D3D12GetDebugInterface asked of a D3DMetal without it");
+        return E_NOINTERFACE;
+    }
+    hr = fn(riid, out);
+    if (FAILED(hr) && out) *out = NULL;
+    if (dbg) LOG("D3D12GetDebugInterface hr=0x%08lx out=%p", (unsigned long)hr, out ? *out : NULL);
     return hr;
 }
 

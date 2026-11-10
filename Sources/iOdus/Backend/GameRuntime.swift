@@ -130,6 +130,27 @@ struct GameRuntime: Sendable, Equatable {
     }
     var marker: URL { prefix.appendingPathComponent(".iodus-runtime") }
 
+    /// The d3d12.dll layer of the app (RuntimeInstaller.addD3DMetal4).
+    var d3d12LayerSource: URL { componentFolder.appendingPathComponent("compat/highball-d3d12-shim.dll") }
+    /// The copy of the layer in a D3DMetal 4 runtime, in front of Apple's d3d12.dll.
+    var d3d12LayerTarget: URL { root.appendingPathComponent("lib/wine/x86_64-windows/d3d12.dll") }
+
+    /// The installer copies the d3d12.dll layer into a D3DMetal 4 runtime only one time.
+    /// A new app can bring a new layer, so this function copies the layer again
+    /// when the two files are different. Other runtimes have no layer.
+    /// Returns true when it changed the file in the runtime.
+    @discardableResult
+    func updateD3D12Layer() throws -> Bool {
+        guard extraEnvironment["WINE_BUILTIN_BY_FILE_NAME"] == RuntimeInstaller.renamedD3D12,
+              FileManager.default.fileExists(atPath: d3d12LayerSource.path) else { return false }
+        let layer = try Data(contentsOf: d3d12LayerSource)
+        if let installed = try? Data(contentsOf: d3d12LayerTarget), installed == layer { return false }
+        // The atomic write puts a new file in place of the old file.
+        // A Wine process that runs keeps the old file open.
+        try layer.write(to: d3d12LayerTarget, options: .atomic)
+        return true
+    }
+
     /// Why the runtime cannot start games, or nil when all parts exist.
     var problem: String? {
         let fm = FileManager.default

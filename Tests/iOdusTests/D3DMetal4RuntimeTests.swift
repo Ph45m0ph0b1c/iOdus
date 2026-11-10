@@ -97,4 +97,52 @@ final class D3DMetal4RuntimeTests: XCTestCase {
                                                           runtimes: runtimes, d3dmetalArchive: d3dmetalArchive, shim: shim))
         XCTAssertFalse(FileManager.default.fileExists(atPath: runtimes.appendingPathComponent("crossover-26.3-d3dm4").path))
     }
+
+    /// A runtime in a temporary folder with a d3d12.dll layer, and the app's layer in `components/compat`.
+    private func makeLayerRuntime(environment: [String: String], installed: String?, app: String?) throws -> GameRuntime {
+        let work = try tempFolder()
+        let root = work.appendingPathComponent("crossover-26.3-d3dm4")
+        let components = work.appendingPathComponent("components")
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("lib/wine/x86_64-windows"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: components.appendingPathComponent("compat"), withIntermediateDirectories: true)
+        let manifest = RuntimeManifest(id: "crossover-26.3-d3dm4", name: "CrossOver 26.3 Wine + D3DMetal 4.0", wineVersion: "11.0",
+                                       wine: "bin/wine", wineserver: "bin/wineserver", libraries: "lib", components: [],
+                                       overrides: [:], register: nil, propertySet: nil, environment: environment,
+                                       release: 5, d3dmetal: nil, inputGate: true)
+        let runtime = GameRuntime.from(manifest: manifest, root: root, prefix: work.appendingPathComponent("prefix"),
+                                       componentRoot: components, usesBundle: false)
+        if let installed { try Data(installed.utf8).write(to: runtime.d3d12LayerTarget) }
+        if let app { try Data(app.utf8).write(to: runtime.d3d12LayerSource) }
+        return runtime
+    }
+
+    private let layerEnvironment = ["WINE_BUILTIN_BY_FILE_NAME": RuntimeInstaller.renamedD3D12]
+
+    func testANewLayerReplacesTheOldLayerInTheRuntime() throws {
+        let runtime = try makeLayerRuntime(environment: layerEnvironment, installed: "OLD LAYER", app: "NEW LAYER")
+        XCTAssertTrue(try runtime.updateD3D12Layer())
+        XCTAssertEqual(try String(contentsOf: runtime.d3d12LayerTarget, encoding: .utf8), "NEW LAYER")
+        XCTAssertFalse(try runtime.updateD3D12Layer(), "The same layer is not copied again")
+    }
+
+    func testTheLayerStaysWhenItIsTheSame() throws {
+        let runtime = try makeLayerRuntime(environment: layerEnvironment, installed: "LAYER", app: "LAYER")
+        let before = try FileManager.default.attributesOfItem(atPath: runtime.d3d12LayerTarget.path)[.modificationDate] as? Date
+        XCTAssertFalse(try runtime.updateD3D12Layer())
+        let after = try FileManager.default.attributesOfItem(atPath: runtime.d3d12LayerTarget.path)[.modificationDate] as? Date
+        XCTAssertEqual(before, after)
+    }
+
+    func testARuntimeWithoutTheLayerIsNotChanged() throws {
+        // A D3DMetal 3 runtime: its d3d12.dll is Apple's file, not the layer.
+        let runtime = try makeLayerRuntime(environment: [:], installed: "APPLE D3D12", app: "NEW LAYER")
+        XCTAssertFalse(try runtime.updateD3D12Layer())
+        XCTAssertEqual(try String(contentsOf: runtime.d3d12LayerTarget, encoding: .utf8), "APPLE D3D12")
+    }
+
+    func testAnAppWithoutTheLayerDoesNotChangeTheRuntime() throws {
+        let runtime = try makeLayerRuntime(environment: layerEnvironment, installed: "OLD LAYER", app: nil)
+        XCTAssertFalse(try runtime.updateD3D12Layer())
+        XCTAssertEqual(try String(contentsOf: runtime.d3d12LayerTarget, encoding: .utf8), "OLD LAYER")
+    }
 }

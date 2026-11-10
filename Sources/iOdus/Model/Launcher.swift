@@ -107,6 +107,9 @@ final class GameLauncher {
                 state = .preparing(id: id, step: "Updating the game runtime")
                 try await runtime.updatePrefix()
             }
+            // The d3d12.dll layer of this app version (D3DMetal 4 runtimes only).
+            // If the copy fails, the game starts with the layer that the runtime has.
+            _ = try? runtime.updateD3D12Layer()
             // The game's Retina choice. A change restarts the Wine processes of the prefix.
             try await runtime.applyRetinaMode(options.retina)
             // Some games check the Gaming Services version in the registry.
